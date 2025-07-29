@@ -35,12 +35,13 @@ def main():
         einkaufsliste = extract_shopping_list_from_audio(audio_bytes)
         # Sende die Liste an die Bring! API
         if einkaufsliste:
+            print("[bold blue]Erkannte Artikel:[/bold blue]")
+            for item in einkaufsliste:
+                spec = f" ({item.get('specification')})" if item.get('specification') else ""
+                print(f"- {item.get('name')}{spec}")
             asyncio.run(add_items_to_bring(einkaufsliste))
         else:
             print("[yellow]Keine Artikel zum Hinzufügen erkannt.[/yellow]")
-        print("[bold blue]Einkaufsliste:[/bold blue]")
-        for item in einkaufsliste:
-            print(f"- {item}")
 
 async def add_items_to_bring(items):
     bring_email = os.getenv("BRING_EMAIL")
@@ -68,8 +69,13 @@ async def add_items_to_bring(items):
             print(f"[cyan]Füge Artikel zur Liste '{shopping_list_name}' hinzu...[/cyan]")
 
             for item in items:
-                await bring.save_item(shopping_list_uuid, item)
-                print(f"- [green]'{item}' hinzugefügt.[/green]")
+                item_name = item.get('name')
+                specification = item.get('specification', '')
+                if not item_name: # Überspringe ungültige Einträge
+                    continue
+                await bring.save_item(shopping_list_uuid, item_name, specification)
+                spec_info = f" mit Spezifikation '{specification}'" if specification else ""
+                print(f"- [green]'{item_name}'{spec_info} hinzugefügt.[/green]")
             
             print("[bold green]Alle Artikel erfolgreich zu Bring! hinzugefügt.[/bold green]")
 

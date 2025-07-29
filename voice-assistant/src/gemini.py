@@ -1,5 +1,6 @@
 import os
 import requests
+import json
 
 def extract_shopping_list_from_audio(audio_bytes):
     api_key = os.getenv("GEMINI_API_KEY")
@@ -8,7 +9,12 @@ def extract_shopping_list_from_audio(audio_bytes):
     url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
     headers = {"Content-Type": "application/json"}
     prompt = (
-        "Extrahiere die Einkaufsliste aus folgendem Audio. Gib nur die Liste der Produkte als Komma-separierte Zeichenkette zurück."
+        "Extrahiere die Einkaufsliste aus dem folgenden Audio. Gib das Ergebnis als JSON-Array zurück. "
+        "Jedes Element im Array sollte ein Objekt mit den Schlüsseln 'name' und 'specification' sein. "
+        "'name' ist der Produktname (z.B. 'Eier'), 'specification' ist die Mengenangabe (z.B. '2 Stück' oder '1kg'). "
+        "Schreibe Zahlen immer als Zahlen und nicht als Text. Beispiel: '2 Eier' statt 'zwei Eier'. "
+        "Wenn keine Mengenangabe vorhanden ist, lasse 'specification' als leeren String. "
+        "Wenn keine Produkte genannt werden oder das Audio nur Stille enthält, gib ein leeres JSON-Array '[]' zurück."
     )
     # Audio als base64-codierten String einbetten
     import base64
@@ -62,4 +68,31 @@ def extract_shopping_list_from_audio(audio_bytes):
         print("[Fehler] Antwort von Gemini konnte nicht gelesen werden:", result)
         print("[Debug] Komplette Gemini-Antwort:", result)
         return []
-    return [item.strip() for item in output.split(",") if item.strip()] 
+    try:
+        # Die Antwort könnte in einem Markdown-Codeblock sein, z.B. ```json ... ```
+        if '```json' in output:
+            output = output.split('```json')[1].split('```')[0].strip()
+        elif output.startswith('```') and output.endswith('```'):
+            output = output[3:-3].strip()
+
+        parsed_list = json.loads(output)
+
+        if not isinstance(parsed_list, list):
+            print(f"[Warnung] Gemini-Antwort ist kein JSON-Array: {parsed_list}")
+            return []
+
+        # Überprüfe die Struktur jedes Elements
+        for item in parsed_list:
+            if not isinstance(item, dict) or 'name' not in item:
+                print(f"[Warnung] Ungültiges Element in der Liste: {item}")
+                return []  # Ungültige Liste verwerfen
+            # Stelle sicher, dass 'specification' immer existiert
+            if 'specification' not in item:
+                item['specification'] = ""
+
+        return parsed_list
+
+    except (json.JSONDecodeError, TypeError) as e:
+        print(f"[Fehler] JSON-Antwort von Gemini konnte nicht verarbeitet werden: {e}")
+        print(f"[Debug] Rohe Antwort: {output}")
+        return []
