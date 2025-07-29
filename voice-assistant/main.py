@@ -99,7 +99,7 @@ async def add_items_to_bring(items):
                     last_item = item_names[-1]
                     added_items_str = f"{all_but_last} und {last_item}"
                 
-                speak(f"Ich habe {added_items_str} hinzugefügt")
+                speak(f"Ok, Ich habe, {added_items_str} hinzugefügt")
 
         except Exception as e:
             print(f"[red]Fehler bei der Verbindung mit Bring!: {e}[/red]")
