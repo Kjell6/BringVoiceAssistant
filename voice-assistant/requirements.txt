@@ -1,10 +1,13 @@
 python-dotenv
 bring-api
+mashumaro
+orjson
 picovoice
 pvporcupine
 requests
 rich
 sounddevice
+scipy
 pvrecorder
 aiohttp
 piper-tts
