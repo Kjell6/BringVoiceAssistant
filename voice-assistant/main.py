@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from src.wakeword import listen_for_wakeword
 from src.gemini import extract_shopping_list_from_audio
+from src.tts import speak
 from rich import print
 import sounddevice as sd
 import numpy as np
@@ -16,11 +17,15 @@ load_dotenv()
 
 def record_audio(duration=8, samplerate=16000):
     print("[cyan]Bitte sprich deine Einkaufsliste nach dem Signal.[/cyan]")
-    sd.play(np.ones(int(0.2 * samplerate)), samplerate)  # kurzes Signal
+    
+    # Audiosignal aus Datei abspielen
+    play_signal("signal.wav")
+
     sd.wait()
     audio = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=1, dtype='int16')
     sd.wait()
     print("[green]Audioaufnahme beendet.[/green]")
+    play_signal("signalAus.wav")
     # In WAV-Format umwandeln (Bytes)
     buf = io.BytesIO()
     wav.write(buf, samplerate, audio)
@@ -36,9 +41,12 @@ def main():
         # Sende die Liste an die Bring! API
         if einkaufsliste:
             print("[bold blue]Erkannte Artikel:[/bold blue]")
+            item_names_for_speak = []
             for item in einkaufsliste:
                 spec = f" ({item.get('specification')})" if item.get('specification') else ""
                 print(f"- {item.get('name')}{spec}")
+                item_names_for_speak.append(f"{item.get('name')}{spec}".strip())
+
             asyncio.run(add_items_to_bring(einkaufsliste))
         else:
             print("[yellow]Keine Artikel zum Hinzufügen erkannt.[/yellow]")
@@ -49,6 +57,7 @@ async def add_items_to_bring(items):
 
     if not bring_email or not bring_password:
         print("[red]Bring! Anmeldeinformationen nicht in .env gefunden.[/red]")
+        speak("Fehler bei den Anmeldedaten.")
         return
 
     print("[cyan]Verbinde mit Bring! API...[/cyan]")
@@ -61,6 +70,7 @@ async def add_items_to_bring(items):
             lists = list_response.lists
             if not lists:
                 print("[red]Keine Einkaufslisten in deinem Bring! Konto gefunden.[/red]")
+                speak("Fehler beim Laden der Listen.")
                 return
 
             # Wähle die erste Liste aus
@@ -79,8 +89,31 @@ async def add_items_to_bring(items):
             
             print("[bold green]Alle Artikel erfolgreich zu Bring! hinzugefügt.[/bold green]")
 
+            # Erfolgreich hinzugefügte Artikel vorlesen
+            item_names = [item.get('name') for item in items if item.get('name')]
+            if item_names:
+                if len(item_names) == 1:
+                    added_items_str = item_names[0]
+                else:
+                    all_but_last = ', '.join(item_names[:-1])
+                    last_item = item_names[-1]
+                    added_items_str = f"{all_but_last} und {last_item}"
+                
+                speak(f"Ich habe {added_items_str} hinzugefügt")
+
         except Exception as e:
             print(f"[red]Fehler bei der Verbindung mit Bring!: {e}[/red]")
+            speak("Verbindungsfehler.")
+
+def play_signal(audio_data):
+    # Audiosignal aus Datei abspielen
+    try:
+        samplerate_file, audio_data = wav.read(audio_data)
+        sd.play(audio_data, samplerate_file)
+    except FileNotFoundError:
+        print("[red]Audiodatei nicht gefunden. Bitte im Projektordner ablegen.[/red]")
+    except Exception as e:
+        print(f"[red]Fehler beim Abspielen der Audiodatei: {e}[/red]")
 
 if __name__ == "__main__":
     main()

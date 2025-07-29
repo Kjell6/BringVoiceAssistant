@@ -7,5 +7,5 @@ rich
 sounddevice
 python-dotenv
 pvrecorder
-numpy
-scipy
+aiohttp
+piper-tts
