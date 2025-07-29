@@ -8,7 +8,7 @@ def listen_for_wakeword():
     if not access_key:
         raise RuntimeError("PICOVOICE_ACCESS_KEY nicht gesetzt. Bitte in .env eintragen.")
     porcupine = pvporcupine.create(access_key=access_key, keywords=["alexa"])
-    recorder = PvRecorder(device_index=-1, frame_length=porcupine.frame_length)
+    recorder = PvRecorder(device_index=1, frame_length=porcupine.frame_length)
     print("[Wakeword-Modul] Warte auf Wakeword 'alexa'...")
     try:
         recorder.start()

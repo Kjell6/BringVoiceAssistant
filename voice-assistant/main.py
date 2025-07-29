@@ -7,6 +7,8 @@ from rich import print
 import sounddevice as sd
 import numpy as np
 import scipy.io.wavfile as wav
+import subprocess
+import tempfile
 import io
 import requests
 import asyncio
@@ -15,7 +17,7 @@ from bring_api import Bring
 
 load_dotenv()
 
-def record_audio(duration=8, samplerate=16000):
+def record_audio(duration=5, samplerate=16000):
     print("[cyan]Bitte sprich deine Einkaufsliste nach dem Signal.[/cyan]")
     
     # Audiosignal aus Datei abspielen
@@ -105,11 +107,29 @@ async def add_items_to_bring(items):
             print(f"[red]Fehler bei der Verbindung mit Bring!: {e}[/red]")
             speak("Verbindungsfehler.")
 
-def play_signal(audio_data):
-    # Audiosignal aus Datei abspielen
+def play_signal(file_path):
+    """Signalton über USB-Speaker abspielen (48 kHz / plughw:3,0).
+    Nutzt sox für hochwertiges Resampling; fällt andernfalls auf aplay mit
+    automatischer Konvertierung zurück."""
     try:
-        samplerate_file, audio_data = wav.read(audio_data)
-        sd.play(audio_data, samplerate_file)
+        # Erstelle temporäre resampelte Datei
+        resampled = tempfile.NamedTemporaryFile(suffix="_48k.wav", delete=False).name
+        try:
+            subprocess.run([
+                "sox",
+                file_path,
+                "-r",
+                "48000",
+                "-c",
+                "2",
+                "-b",
+                "16",
+                resampled,
+            ], check=True, capture_output=True)
+            subprocess.run(["aplay", "-D", "plughw:3,0", resampled], check=True, capture_output=True)
+        except FileNotFoundError:
+            # sox nicht verfügbar → direkte Wiedergabe
+            subprocess.run(["aplay", "-D", "plughw:3,0", file_path], check=True)
     except FileNotFoundError:
         print("[red]Audiodatei nicht gefunden. Bitte im Projektordner ablegen.[/red]")
     except Exception as e:
