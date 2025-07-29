@@ -5,7 +5,6 @@ pvporcupine
 requests
 rich
 sounddevice
-python-dotenv
 pvrecorder
 aiohttp
 piper-tts
