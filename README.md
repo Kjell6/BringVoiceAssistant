@@ -1,4 +1,4 @@
-# VoiceAssistantBring - Sprachgesteuerter Einkaufslisten-Assistent
+# BringVoiceAssistant - Sprachgesteuerter Einkaufslisten-Assistent
 
 Ein intelligenter Sprachassistent, der auf das Wakeword "Alexa" hört, deine gesprochenen Einkaufswünsche versteht und automatisch zur Bring! Einkaufsliste hinzufügt.
 
@@ -15,7 +15,7 @@ Ein intelligenter Sprachassistent, der auf das Wakeword "Alexa" hört, deine ges
 ### 1. Repository klonen
 ```bash
 git clone <repository-url>
-cd VoiceAssistantBring
+cd BringVoiceAssistant
 ```
 
 ### 2. Virtuelle Umgebung einrichten
@@ -118,7 +118,7 @@ sudo apt install python3-pip python3-venv portaudio19-dev -y
 
 # Projekt setup (wie oben)
 git clone <repository-url>
-cd VoiceAssistantBring/voice-assistant
+cd BringVoiceAssistant/voice-assistant
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -138,9 +138,9 @@ After=network.target
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/home/pi/VoiceAssistantBring/voice-assistant
-Environment=PATH=/home/pi/VoiceAssistantBring/voice-assistant/venv/bin
-ExecStart=/home/pi/VoiceAssistantBring/voice-assistant/venv/bin/python main.py
+WorkingDirectory=/home/pi/BringVoiceAssistant/voice-assistant
+Environment=PATH=/home/pi/BringVoiceAssistant/voice-assistant/venv/bin
+ExecStart=/home/pi/BringVoiceAssistant/voice-assistant/venv/bin/python main.py
 Restart=always
 
 [Install]
