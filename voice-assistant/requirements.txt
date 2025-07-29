@@ -1,0 +1,11 @@
+python-dotenv
+bring-api
+picovoice
+pvporcupine
+requests
+rich
+sounddevice
+python-dotenv
+pvrecorder
+numpy
+scipy
