@@ -6,6 +6,8 @@ import time
 import tempfile
 import platform
 # from piper import PiperVoice # No longer used directly for synthesis
+from gtts import gTTS
+from .utils import play_audio_file
 
 # Pfad zum Piper-Sprachmodell. Geht vom 'src'-Ordner eine Ebene nach oben
 # und dann in den 'voices'-Ordner.
@@ -18,10 +20,13 @@ def _check_model_path():
         return False
     return True
 
-def speak(text: str):
+def speakPiper(text: str):
     """
     Wandelt Text mit Piper in Sprache um und spielt sie ab.
     Nutzt den gleichen Ansatz wie die Signal-Wiedergabe für bessere Fehlerbehandlung.
+    
+    Args:
+        text (str): Der zu synthetisierende Text
     """
     if not text:
         print("Speak-Funktion erhielt leeren Text.")
@@ -29,6 +34,8 @@ def speak(text: str):
 
     if not _check_model_path():
         return
+        
+    start_time = time.time()
 
     output_path = None
     resampled_path = None
@@ -54,31 +61,14 @@ def speak(text: str):
         )
 
         # Audio-Wiedergabe mit dem gleichen Ansatz wie bei Signal-Sounds
-        system = platform.system()
-        if system == "Darwin":  # macOS
-            subprocess.run(["afplay", output_path], check=True, capture_output=True)
-        elif system == "Linux":  # Raspberry Pi, etc.
-            # Erstelle temporäre resampelte Datei (wie bei play_signal)
-            resampled_path = tempfile.NamedTemporaryFile(suffix="_48k.wav", delete=False).name
-            try:
-                # Resample mit sox für bessere Qualität
-                subprocess.run([
-                    "sox",
-                    output_path,
-                    "-r", "48000",
-                    "-c", "2",
-                    "-b", "16",
-                    resampled_path,
-                ], check=True, capture_output=True)
-                subprocess.run(["aplay", "-D", "plughw:3,0", resampled_path], check=True, capture_output=True)
-            except FileNotFoundError:
-                # sox nicht verfügbar → direkte Wiedergabe
-                subprocess.run(["aplay", "-D", "plughw:3,0", output_path], check=True, capture_output=True)
-        else:
-            print(f"Warnung: Kein Audio-Player für Betriebssystem '{system}' gefunden.")
-            return
+        try:
+            play_audio_file(output_path)
+        except Exception as e:
+            print(f"Fehler bei der Audio-Wiedergabe: {e}")
             
-        print(f"Audio für '{text}' erfolgreich abgespielt.")
+        end_time = time.time()
+        duration = end_time - start_time
+        print(f"TTS Generation für '{text}' dauerte: {duration:.2f} Sekunden")
 
     except FileNotFoundError as e:
         print(f"Audiodatei oder Player nicht gefunden: {e}")
@@ -93,6 +83,44 @@ def speak(text: str):
                 os.unlink(output_path)
             if resampled_path and os.path.exists(resampled_path):
                 os.unlink(resampled_path)
+        except Exception as cleanup_error:
+            print(f"Warnung: Fehler beim Aufräumen temporärer Dateien: {cleanup_error}")
+
+
+def speak(text: str, lang: str = "de"):
+    """
+    Wandelt Text mit Google Text-to-Speech (gTTS) in Sprache um und spielt sie ab.
+    Args:
+        text (str): Der zu synthetisierende Text
+        lang (str): Sprachcode (Standard: 'de')
+    """
+    import tempfile
+    import os
+    try:
+        if not text:
+            print("gspeak-Funktion erhielt leeren Text.")
+            return
+        # Erzeuge temporäre MP3-Datei
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_file:
+            tts = gTTS(text=text, lang=lang)
+            tts.save(tmp_file.name)
+            mp3_path = tmp_file.name
+        # Konvertiere MP3 zu WAV für play_audio_file
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wav_file:
+            wav_path = wav_file.name
+        # Nutze ffmpeg zur Umwandlung
+        import subprocess
+        subprocess.run(["ffmpeg", "-y", "-i", mp3_path, wav_path], check=True, capture_output=True)
+        play_audio_file(wav_path)
+    except Exception as e:
+        print(f"Fehler bei gspeak: {e}")
+    finally:
+        # Aufräumen
+        try:
+            if 'mp3_path' in locals() and os.path.exists(mp3_path):
+                os.unlink(mp3_path)
+            if 'wav_path' in locals() and os.path.exists(wav_path):
+                os.unlink(wav_path)
         except Exception as cleanup_error:
             print(f"Warnung: Fehler beim Aufräumen temporärer Dateien: {cleanup_error}")
 

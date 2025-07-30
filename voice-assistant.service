@@ -1,0 +1,21 @@
+[Unit]
+Description=Bring Voice Assistant
+After=network.target sound.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/kjell/BringVoiceAssistant/voice-assistant
+ExecStart=/home/kjell/BringVoiceAssistant/voice-assistant/start_assistant.sh
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Audio-Gruppe für Mikrofon-Zugriff
+SupplementaryGroups=audio
+
+[Install]
+WantedBy=multi-user.target 

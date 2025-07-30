@@ -12,8 +12,10 @@ def extract_shopping_list_from_audio(audio_bytes):
         "Extrahiere die Einkaufsliste aus dem folgenden Audio. Gib das Ergebnis als JSON-Array zurück. "
         "Jedes Element im Array sollte ein Objekt mit den Schlüsseln 'name' und 'specification' sein. "
         "'name' ist der Produktname (z.B. 'Eier'), 'specification' ist die Mengenangabe (z.B. '2 Stück' oder '1kg'). "
+        "Gewichtsangaben sollten immer in kg oder g sein. Also nicht Kilogramm oder Gramm."
         "Schreibe Zahlen immer als Zahlen und nicht als Text. Beispiel: '2 Eier' statt 'zwei Eier'. "
         "Wenn keine Mengenangabe vorhanden ist, lasse 'specification' als leeren String. "
+        "Beachte auch auf Befehle wie schreibe zum Käse dazu, dass es ein brauner sein soll."
         "Wenn keine Produkte genannt werden oder das Audio nur Stille enthält, gib ein leeres JSON-Array '[]' zurück."
     )
     # Audio als base64-codierten String einbetten

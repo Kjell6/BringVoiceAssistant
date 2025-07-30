@@ -14,6 +14,7 @@ import requests
 import asyncio
 import aiohttp
 from bring_api import Bring
+from src.utils import play_audio_file
 
 load_dotenv()
 
@@ -92,13 +93,18 @@ async def add_items_to_bring(items):
             print("[bold green]Alle Artikel erfolgreich zu Bring! hinzugefügt.[/bold green]")
 
             # Erfolgreich hinzugefügte Artikel vorlesen
-            item_names = [item.get('name') for item in items if item.get('name')]
-            if item_names:
-                if len(item_names) == 1:
-                    added_items_str = item_names[0]
+            item_names_with_specs = []
+            for item in items:
+                if item.get('name'):
+                    spec = f" {item.get('specification')}" if item.get('specification') else ""
+                    item_names_with_specs.append(f"{item.get('name')}{spec}")
+            
+            if item_names_with_specs:
+                if len(item_names_with_specs) == 1:
+                    added_items_str = item_names_with_specs[0]
                 else:
-                    all_but_last = ', '.join(item_names[:-1])
-                    last_item = item_names[-1]
+                    all_but_last = ', '.join(item_names_with_specs[:-1])
+                    last_item = item_names_with_specs[-1]
                     added_items_str = f"{all_but_last} und {last_item}"
                 
                 speak(f"Ok, Ich habe, {added_items_str} hinzugefügt")
@@ -108,28 +114,9 @@ async def add_items_to_bring(items):
             speak("Verbindungsfehler.")
 
 def play_signal(file_path):
-    """Signalton über USB-Speaker abspielen (48 kHz / plughw:3,0).
-    Nutzt sox für hochwertiges Resampling; fällt andernfalls auf aplay mit
-    automatischer Konvertierung zurück."""
+    """Signalton über USB-Speaker abspielen (48 kHz / plughw:3,0)."""
     try:
-        # Erstelle temporäre resampelte Datei
-        resampled = tempfile.NamedTemporaryFile(suffix="_48k.wav", delete=False).name
-        try:
-            subprocess.run([
-                "sox",
-                file_path,
-                "-r",
-                "48000",
-                "-c",
-                "2",
-                "-b",
-                "16",
-                resampled,
-            ], check=True, capture_output=True)
-            subprocess.run(["aplay", "-D", "plughw:3,0", resampled], check=True, capture_output=True)
-        except FileNotFoundError:
-            # sox nicht verfügbar → direkte Wiedergabe
-            subprocess.run(["aplay", "-D", "plughw:3,0", file_path], check=True)
+        play_audio_file(file_path)
     except FileNotFoundError:
         print("[red]Audiodatei nicht gefunden. Bitte im Projektordner ablegen.[/red]")
     except Exception as e:
