@@ -33,7 +33,7 @@ pip install -r requirements.txt
 ```
 
 ### 4. Audio-Geräte konfigurieren
-**Wichtig**: Das System muss wissen, welches Audio-Gerät für die Wiedergabe verwendet werden soll.
+**Wichtig**: Auf Linux bzw. RaspberryPi Os muss das System wissen, welches Audio-Gerät für die Wiedergabe verwendet werden soll.
 
 ```bash
 # Verfügbare Audio-Geräte anzeigen
@@ -211,8 +211,6 @@ Das System verwendet folgende Priorität für Wakewords:
 1. **Custom Wakeword-Dateien** (falls vorhanden): `heyListe.ppn` und `PorcupineDe.pv` im `src/` Verzeichnis
 2. **Vorgefertigtes Wakeword** (Fallback): Standard "Alexa" oder über `WAKEWORD_KEYWORD` in der `.env` konfiguriert
 
-**Hinweis**: Im `src/` Verzeichnis sind bereits Custom Wakeword-Dateien für "heyListe" vorhanden (nur für Raspberry Pi). Falls du "Alexa" verwenden möchtest, entferne einfach diese Dateien.
-
 #### Custom Wakeword (bereits konfiguriert)
 Das System verwendet standardmäßig das Custom Wakeword "heyListe" mit den bereits vorhandenen Dateien im `src/` Verzeichnis. Diese sind speziell für Raspberry Pi optimiert.
 
@@ -255,7 +253,7 @@ WAKEWORD_NAME=Alexa  # Anzeigename für das Wakeword
 - **hey siri**: "Hey Siri" Wakeword
 - **computer**: "Computer" Wakeword
 - **jarvis**: "Jarvis" Wakeword
-- **und viele weitere**: Alle verfügbaren Wakewords findest du in der [Picovoice Dokumentation](https://picovoice.ai/docs/porcupine/keywords/)
+- **und viele weitere**: Alle verfügbaren Wakewords findest du in der [Picovoice Dokumentation](https://picovoice.ai/docs/quick-start/porcupine-c/)
 
 ### Bring! Credentials
 - Verwende deine normalen Bring! App Login-Daten
