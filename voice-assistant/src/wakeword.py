@@ -13,36 +13,32 @@ def listen_for_wakeword():
     custom_keyword_path = os.path.join(current_dir, 'heyListe.ppn')
     custom_model_path = os.path.join(current_dir, 'PorcupineDe.pv')
     
-    # Verwende Custom Wakeword falls vorhanden, sonst "Alexa"
+    # Verwende Custom Wakeword falls vorhanden, sonst vorgefertigtes Wakeword
     if os.path.exists(custom_keyword_path) and os.path.exists(custom_model_path):
         # Custom Wakeword verwenden
         keyword_path = os.getenv("WAKEWORD_KEYWORD_PATH", custom_keyword_path)
         model_path = os.getenv("WAKEWORD_MODEL_PATH", custom_model_path)
         wakeword_name = os.getenv("WAKEWORD_NAME", "heyListe")
         print(f"[Wakeword-Modul] Verwende Custom Wakeword '{wakeword_name}'...")
+        
+        # Prüfe ob die Dateien existieren
+        if not os.path.exists(keyword_path):
+            raise RuntimeError(f"Wakeword-Datei nicht gefunden: {keyword_path}")
+        if not os.path.exists(model_path):
+            raise RuntimeError(f"Sprachmodell-Datei nicht gefunden: {model_path}")
+        
+        porcupine = pvporcupine.create(access_key=access_key, keyword_paths=[keyword_path], model_path=model_path)
     else:
-        # Standard "Alexa" Wakeword verwenden
-        keyword_path = os.getenv("WAKEWORD_KEYWORD_PATH")
-        model_path = os.getenv("WAKEWORD_MODEL_PATH")
+        # Vorgefertigtes Wakeword verwenden
         wakeword_name = os.getenv("WAKEWORD_NAME", "Alexa")
+        wakeword_keyword = os.getenv("WAKEWORD_KEYWORD", "alexa")
         
-        if not keyword_path or not model_path:
-            print("[Wakeword-Modul] Keine Custom Wakeword-Dateien gefunden. Verwende Standard 'Alexa' Wakeword.")
-            print("[Wakeword-Modul] Hinweis: Für Custom Wakewords, lade die Dateien in das src/ Verzeichnis herunter.")
-            print("[Wakeword-Modul] Oder setze WAKEWORD_KEYWORD_PATH und WAKEWORD_MODEL_PATH in der .env")
+        print(f"[Wakeword-Modul] Keine Custom Wakeword-Dateien gefunden. Verwende vorgefertigtes Wakeword '{wakeword_name}'.")
+        print(f"[Wakeword-Modul] Hinweis: Für Custom Wakewords, lade die Dateien in das src/ Verzeichnis herunter.")
+        print(f"[Wakeword-Modul] Oder setze WAKEWORD_KEYWORD in der .env für andere vorgefertigte Wakewords.")
         
-        if not keyword_path:
-            raise RuntimeError("WAKEWORD_KEYWORD_PATH nicht gesetzt. Bitte in .env eintragen oder Custom Wakeword-Dateien hinzufügen.")
-        if not model_path:
-            raise RuntimeError("WAKEWORD_MODEL_PATH nicht gesetzt. Bitte in .env eintragen oder Custom Wakeword-Dateien hinzufügen.")
+        porcupine = pvporcupine.create(access_key=access_key, keywords=[wakeword_keyword])
     
-    # Prüfe ob die Dateien existieren
-    if not os.path.exists(keyword_path):
-        raise RuntimeError(f"Wakeword-Datei nicht gefunden: {keyword_path}")
-    if not os.path.exists(model_path):
-        raise RuntimeError(f"Sprachmodell-Datei nicht gefunden: {model_path}")
-    
-    porcupine = pvporcupine.create(access_key=access_key, keyword_paths=[keyword_path], model_path=model_path)
     recorder = PvRecorder(device_index=1, frame_length=porcupine.frame_length)
     
     print(f"[Wakeword-Modul] Warte auf Wakeword '{wakeword_name}'...")

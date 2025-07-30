@@ -72,9 +72,8 @@ AUDIO_DEVICE=plughw:1,0  # Anpassen an dein Audio-Gerät
 
 # Wakeword-Konfiguration (optional)
 # Falls keine Custom-Dateien im src/ Verzeichnis vorhanden sind:
-# WAKEWORD_KEYWORD_PATH=/pfad/zu/deinem/wakeword.ppn
-# WAKEWORD_MODEL_PATH=/pfad/zu/deinem/sprachmodell.pv
-# WAKEWORD_NAME=Alexa  # oder dein gewünschtes Wakeword
+# WAKEWORD_KEYWORD=alexa  # oder "hey google", "hey siri", etc.
+# WAKEWORD_NAME=Alexa  # Anzeigename für das Wakeword
 ```
 
 **Audio-Device-Beispiele:**
@@ -208,8 +207,7 @@ sudo systemctl start voice-assistant.service
 Das System verwendet folgende Priorität für Wakewords:
 
 1. **Custom Wakeword-Dateien** (falls vorhanden): `heyListe.ppn` und `PorcupineDe.pv` im `src/` Verzeichnis
-2. **Vorgefertigtes Wakeword** (falls in `.env` konfiguriert): Über `WAKEWORD_KEYWORD_PATH` und `WAKEWORD_MODEL_PATH`
-3. **Standard "Alexa"** (Fallback): Falls keine Custom-Dateien vorhanden und keine `.env`-Konfiguration
+2. **Vorgefertigtes Wakeword** (Fallback): Standard "Alexa" oder über `WAKEWORD_KEYWORD` in der `.env` konfiguriert
 
 #### Custom Wakeword (empfohlen)
 Das System erkennt automatisch Custom Wakeword-Dateien im `src/` Verzeichnis. Die Pfade können in der `.env` angepasst werden:
@@ -234,17 +232,18 @@ WAKEWORD_NAME=heyListe  # Anzeigename für das Wakeword
 Falls du ein vorgefertigtes Wakeword verwenden möchtest:
 
 ```env
-# Vorgefertigtes Wakeword (z.B. "Alexa", "Hey Google", etc.)
-WAKEWORD_KEYWORD_PATH=/pfad/zu/vorgefertigtem_wakeword.ppn
-WAKEWORD_MODEL_PATH=/pfad/zu/vorgefertigtem_sprachmodell.pv
+# Vorgefertigtes Wakeword (keine Dateien nötig!)
+WAKEWORD_KEYWORD=alexa  # oder "hey google", "hey siri", etc.
 WAKEWORD_NAME=Alexa  # Anzeigename für das Wakeword
 ```
 
-**Vorgefertigte Wakewords:**
-- **Alexa**: Verwende das "Alexa" Wakeword von Picovoice
-- **Hey Google**: Verwende das "Hey Google" Wakeword
-- **Hey Siri**: Verwende das "Hey Siri" Wakeword
-- **Weitere**: Alle verfügbaren Wakewords findest du in der [Picovoice Console](https://console.picovoice.ai/)
+**Verfügbare vorgefertigte Wakewords:**
+- **alexa**: "Alexa" Wakeword
+- **hey google**: "Hey Google" Wakeword  
+- **hey siri**: "Hey Siri" Wakeword
+- **computer**: "Computer" Wakeword
+- **jarvis**: "Jarvis" Wakeword
+- **und viele weitere**: Alle verfügbaren Wakewords findest du in der [Picovoice Dokumentation](https://picovoice.ai/docs/porcupine/keywords/)
 
 ### Bring! Credentials
 - Verwende deine normalen Bring! App Login-Daten
@@ -278,11 +277,11 @@ echo $AUDIO_DEVICE
 - Mikrofon-Berechtigung prüfen
 - Spreche das Wakeword deutlich und nicht zu leise
 - Teste verschiedene Mikrofon-Positionen
-- Überprüfe die Wakeword-Dateien in der `.env`:
+- Überprüfe die Wakeword-Konfiguration:
   ```bash
-  # Teste ob die Dateien existieren
-  ls -la $WAKEWORD_KEYWORD_PATH
-  ls -la $WAKEWORD_MODEL_PATH
+  # Teste ob Custom-Dateien vorhanden sind
+  ls -la voice-assistant/src/*.ppn
+  ls -la voice-assistant/src/*.pv
   ```
 - Bei Custom Wakewords: Stelle sicher, dass die `.ppn` und `.pv` Dateien korrekt heruntergeladen wurden
-- Bei vorgefertigten Wakewords: Verwende die passenden Sprachmodelle für deine Sprache 
+- Bei vorgefertigten Wakewords: Überprüfe den `WAKEWORD_KEYWORD` Wert in der `.env` 
