@@ -71,9 +71,9 @@ PICOVOICE_ACCESS_KEY=dein_picovoice_key
 AUDIO_DEVICE=plughw:1,0  # Anpassen an dein Audio-Gerät
 
 # Wakeword-Konfiguration (optional)
-# Falls keine Custom-Dateien im src/ Verzeichnis vorhanden sind:
-# WAKEWORD_KEYWORD=alexa  # oder "hey google", "hey siri", etc.
-# WAKEWORD_NAME=Alexa  # Anzeigename für das Wakeword
+# Nur nötig falls du andere vorgefertigte Wakewords als "Alexa" verwenden möchtest:
+# WAKEWORD_KEYWORD=hey google  # oder "hey siri", "computer", etc.
+# WAKEWORD_NAME=Hey Google  # Anzeigename für das Wakeword
 ```
 
 **Audio-Device-Beispiele:**
@@ -95,6 +95,8 @@ python main.py
 3. **Sprechen**: Nach dem Signal deine Einkaufsliste aufsagen (z.B. "Ich brauche Milch, Brot und Äpfel")
 4. **Bestätigung**: Das System analysiert die Sprache und fügt Artikel zur Bring! Liste hinzu
 5. **Feedback**: Audio-Bestätigung der hinzugefügten Artikel
+
+**Hinweis**: Das System verwendet standardmäßig "heyListe" (Custom Wakeword). Falls du "Alexa" verwenden möchtest, entferne einfach die Dateien `heyListe.ppn` und `PorcupineDe.pv` aus dem `src/` Verzeichnis.
 
 ### Beispiel-Session
 ```
@@ -209,8 +211,10 @@ Das System verwendet folgende Priorität für Wakewords:
 1. **Custom Wakeword-Dateien** (falls vorhanden): `heyListe.ppn` und `PorcupineDe.pv` im `src/` Verzeichnis
 2. **Vorgefertigtes Wakeword** (Fallback): Standard "Alexa" oder über `WAKEWORD_KEYWORD` in der `.env` konfiguriert
 
-#### Custom Wakeword (empfohlen)
-Das System erkennt automatisch Custom Wakeword-Dateien im `src/` Verzeichnis. Die Pfade können in der `.env` angepasst werden:
+**Hinweis**: Im `src/` Verzeichnis sind bereits Custom Wakeword-Dateien für "heyListe" vorhanden (nur für Raspberry Pi). Falls du "Alexa" verwenden möchtest, entferne einfach diese Dateien.
+
+#### Custom Wakeword (bereits konfiguriert)
+Das System verwendet standardmäßig das Custom Wakeword "heyListe" mit den bereits vorhandenen Dateien im `src/` Verzeichnis. Diese sind speziell für Raspberry Pi optimiert.
 
 ```env
 # Custom Wakeword-Konfiguration
@@ -219,17 +223,25 @@ WAKEWORD_MODEL_PATH=/pfad/zu/deinem/sprachmodell.pv
 WAKEWORD_NAME=heyListe  # Anzeigename für das Wakeword
 ```
 
-**Custom Wakeword erstellen:**
+**Custom Wakeword erstellen (nur falls du ein anderes Custom Wakeword möchtest):**
 1. Besuche [Picovoice Console](https://console.picovoice.ai/)
 2. Gehe zu "Voice Models" → "Create Voice Model"
 3. Wähle deine Sprache (z.B. Deutsch)
 4. Gehe zu "Custom Keywords" → "Create Custom Keyword"
-5. Gib dein gewünschtes Wakeword ein (z.B. "heyListe", "Einkaufsliste", etc.)
+5. Gib dein gewünschtes Wakeword ein (z.B. "Einkaufsliste", "Shopping", etc.)
 6. Lade die `.ppn`-Datei herunter und platziere sie im `src/` Verzeichnis
 7. Lade das Sprachmodell (`.pv`-Datei) herunter und platziere es im `src/` Verzeichnis
 
 #### Vorgefertigtes Wakeword verwenden
-Falls du ein vorgefertigtes Wakeword verwenden möchtest:
+Falls du "Alexa" oder ein anderes vorgefertigtes Wakeword verwenden möchtest:
+
+**Einfachste Lösung für "Alexa":**
+```bash
+# Entferne die Custom-Dateien
+rm voice-assistant/src/heyListe.ppn
+rm voice-assistant/src/PorcupineDe.pv
+```
+Dann verwendet das System automatisch "Alexa" - **keine weitere Konfiguration nötig!**
 
 ```env
 # Vorgefertigtes Wakeword (keine Dateien nötig!)
