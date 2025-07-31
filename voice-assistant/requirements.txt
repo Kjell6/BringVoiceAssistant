@@ -12,3 +12,4 @@ pvrecorder
 aiohttp
 piper-tts
 gTTS
+silero-vad torch
