@@ -15,35 +15,23 @@ import asyncio
 import aiohttp
 from bring_api import Bring
 from src.utils import play_audio_file
-import torch
-from silero_vad import load_silero_vad, get_speech_timestamps, collect_chunks
 
 load_dotenv()
 
-def record_audio(samplerate=16000, max_duration=15):
-    print("[cyan]Bitte sprich deine Einkaufsliste nach dem Signal.Maximal 15 Sekunden.[/cyan]")
+def record_audio(duration=5, samplerate=16000):
+    print("[cyan]Bitte sprich deine Einkaufsliste nach dem Signal.[/cyan]")
+    
+    # Audiosignal aus Datei abspielen
     play_signal("signal.wav")
 
-    # Aufnahme für maximal max_duration Sekunden
-    audio = sd.rec(int(max_duration * samplerate), samplerate=samplerate, channels=1, dtype='int16')
+    sd.wait()
+    audio = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=1, dtype='int16')
     sd.wait()
     print("[green]Audioaufnahme beendet.[/green]")
     play_signal("signalAus.wav")
-
-    # In float32 umwandeln und normalisieren
-    audio_float = audio.flatten().astype('float32') / 32768.0
-    audio_tensor = torch.from_numpy(audio_float)
-
-    # Modell laden
-    model = load_silero_vad()
-    # Sprachsegmente erkennen
-    speech_timestamps = get_speech_timestamps(audio_tensor, model, sampling_rate=samplerate)
-    # Nur Sprachsegmente extrahieren
-    speech_audio = collect_chunks(speech_timestamps, audio_tensor)
-
     # In WAV-Format umwandeln (Bytes)
     buf = io.BytesIO()
-    wav.write(buf, samplerate, (speech_audio.numpy() * 32768).astype('int16'))
+    wav.write(buf, samplerate, audio)
     return buf.getvalue()
 
 def main():
