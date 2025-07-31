@@ -21,7 +21,7 @@ from silero_vad import load_silero_vad, get_speech_timestamps, collect_chunks
 load_dotenv()
 
 def record_audio(samplerate=16000, max_duration=15):
-    print("[cyan]Bitte sprich deine Einkaufsliste nach dem Signal.[/cyan]")
+    print("[cyan]Bitte sprich deine Einkaufsliste nach dem Signal.Maximal 15 Sekunden.[/cyan]")
     play_signal("signal.wav")
 
     # Aufnahme für maximal max_duration Sekunden
