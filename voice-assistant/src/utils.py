@@ -17,8 +17,8 @@ def play_audio_file(audio_path: str):
     system = platform.system()
     resampled_path = None
     
-    # Audio-Device aus .env oder Fallback
-    audio_device = os.getenv('AUDIO_DEVICE', 'plughw:1,0')
+    # Audio-Device aus .env oder Fallback (Jabra Link 370)
+    audio_device = os.getenv('AUDIO_DEVICE', 'plughw:3,0')
     
     try:
         if system == "Darwin":  # macOS

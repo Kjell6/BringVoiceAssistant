@@ -25,15 +25,21 @@ def record_audio(duration=5, samplerate=16000):
     play_signal("signal.wav")
 
     sd.wait()
-    audio = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=1, dtype='int16')
+    # Verwende Jabra Link 370 Mikrofon (Index 1)
+    audio = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=1, dtype='int16', device=1)
     sd.wait()
     print("[green]Audioaufnahme beendet.[/green]")
     play_signal("signalAus.wav")
     # In WAV-Format umwandeln (Bytes)
     buf = io.BytesIO()
     wav.write(buf, samplerate, audio)
-    return buf.getvalue()
+    audio_bytes = buf.getvalue()
 
+    # Die aufgenommene Audiodatei zur Überprüfung speichern
+    with open("last_recording.wav", "wb") as f:
+        f.write(audio_bytes)
+    print("[dim]Aufgenommene Audiodatei wurde zur Überprüfung in last_recording.wav gespeichert.[/dim]")
+    return audio_bytes
 def main():
     print("[bold green]Einkaufslisten-Sprachassistent gestartet![/bold green]")
     while True:
@@ -114,7 +120,7 @@ async def add_items_to_bring(items):
             speak("Verbindungsfehler.")
 
 def play_signal(file_path):
-    """Signalton über USB-Speaker abspielen (48 kHz / plughw:3,0)."""
+    """Signalton über Jabra Link 370 abspielen (48 kHz / plughw:3,0)."""
     try:
         play_audio_file(file_path)
     except FileNotFoundError:
