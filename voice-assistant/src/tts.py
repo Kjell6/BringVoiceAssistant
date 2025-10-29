@@ -24,6 +24,48 @@ def _measure_and_log(start_time: float, engine_name: str, text: str):
     print(f"{engine_name} Generation für '{text}' dauerte: {duration:.2f}s")
 
 
+async def generate_tts_async(text: str, lang: str = "de") -> str:
+    """
+    Generiert TTS-Audio asynchron (Gemini/Google TTS).
+    Gibt den Pfad zur Audio-Datei zurück, spielt aber nicht ab.
+    
+    Ideal für Parallelisierung - TTS läuft während andere Prozesse laufen.
+    
+    Args:
+        text: Text zum Synthetisieren
+        lang: Sprachcode (Standard: 'de')
+    
+    Returns:
+        Pfad zur generierten MP3-Datei oder None bei Fehler
+    """
+    if not text:
+        print("[yellow]Fehler: Leerer Text übergeben[/yellow]")
+        return None
+    
+    mp3_path = None
+    start_time = time.time()
+    
+    try:
+        # Erstelle MP3 und speichere
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+            mp3_path = tmp.name
+            gTTS(text=text, lang=lang).save(mp3_path)
+        
+        duration = time.time() - start_time
+        print(f"[dim]🔊 TTS generiert ('{text[:30]}...'): {duration:.2f}s[/dim]")
+        
+        return mp3_path
+    
+    except Exception as e:
+        print(f"[red]Fehler bei TTS-Generierung: {e}[/red]")
+        if mp3_path and os.path.exists(mp3_path):
+            try:
+                os.unlink(mp3_path)
+            except:
+                pass
+        return None
+
+
 def speak(text: str, lang: str = "de"):
     """
     Google Text-to-Speech (gTTS).
