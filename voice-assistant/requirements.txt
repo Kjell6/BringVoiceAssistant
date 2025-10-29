@@ -12,4 +12,8 @@ pvrecorder
 aiohttp
 piper-tts
 gTTS
-silero-vad torch
+silero-vad 
+torch
+openai
+ipywidgets
+pathlib

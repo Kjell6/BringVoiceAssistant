@@ -1,6 +1,7 @@
 import os
 import pvporcupine
 from pvrecorder import PvRecorder
+from .config import AudioConfig
 
 
 def listen_for_wakeword():
@@ -39,7 +40,7 @@ def listen_for_wakeword():
         
         porcupine = pvporcupine.create(access_key=access_key, keywords=[wakeword_keyword])
     
-    recorder = PvRecorder(device_index=1, frame_length=porcupine.frame_length)
+    recorder = PvRecorder(device_index=AudioConfig.PVRECORDER_DEVICE_INDEX, frame_length=porcupine.frame_length)
     
     print(f"[Wakeword-Modul] Warte auf Wakeword '{wakeword_name}'...")
     

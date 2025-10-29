@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from src.wakeword import listen_for_wakeword
 from src.gemini import extract_shopping_list_from_audio
 from src.tts import speak
+from src.config import AudioConfig
 from rich import print
 import sounddevice as sd
 import numpy as np
@@ -25,8 +26,8 @@ def record_audio(duration=5, samplerate=16000):
     play_signal("signal.wav")
 
     sd.wait()
-    # Verwende Jabra Link 370 Mikrofon (Index 1)
-    audio = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=1, dtype='int16', device=1)
+    # Verwende Audiogerät aus Konfiguration
+    audio = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=1, dtype='int16', device=AudioConfig.SOUNDDEVICE_MICROPHONE_INDEX)
     sd.wait()
     print("[green]Audioaufnahme beendet.[/green]")
     play_signal("signalAus.wav")

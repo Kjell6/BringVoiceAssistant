@@ -3,6 +3,7 @@ import platform
 import subprocess
 import os
 from dotenv import load_dotenv
+from .config import AudioConfig
 
 # Lade .env-Datei
 load_dotenv()
@@ -17,8 +18,8 @@ def play_audio_file(audio_path: str):
     system = platform.system()
     resampled_path = None
     
-    # Audio-Device aus .env oder Fallback (Jabra Link 370)
-    audio_device = os.getenv('AUDIO_DEVICE', 'plughw:3,0')
+    # Audio-Device aus zentraler Konfiguration
+    audio_device = AudioConfig.ALSA_AUDIO_DEVICE
     
     try:
         if system == "Darwin":  # macOS

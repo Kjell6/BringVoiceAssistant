@@ -118,3 +118,4 @@ dmypy.json
 
 # macOS
 .DS_Store
+voice-assistant/last_recording.wav
