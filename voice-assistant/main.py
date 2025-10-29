@@ -1,4 +1,5 @@
 import os
+import time
 from dotenv import load_dotenv
 from src.wakeword import listen_for_wakeword
 from src.gemini import extract_shopping_list_from_audio
@@ -12,6 +13,7 @@ import io
 import asyncio
 import aiohttp
 from bring_api import Bring
+import logging
 
 load_dotenv()
 
@@ -21,6 +23,68 @@ SAMPLE_RATE = 16000
 LAST_RECORDING_FILE = "last_recording.wav"
 SIGNAL_START = "signal.wav"
 SIGNAL_END = "signalAus.wav"
+LISTS_CACHE_TIMEOUT = 300  # 5 Minuten Cache für Listen
+
+# Setup Logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+# Cache für Bring! Session und Listen
+class BringCache:
+    """Cache für Bring! API Session und Listen mit erweiterten Funktionen."""
+    
+    def __init__(self):
+        self.session = None
+        self.bring = None
+        self.lists = None
+        self.lists_timestamp = None
+        self.session_timestamp = None
+        self.cache_hits = {"session": 0, "lists": 0}
+        self.cache_misses = {"session": 0, "lists": 0}
+    
+    def is_session_valid(self) -> bool:
+        """Prüft, ob Session noch gültig ist."""
+        return self.session is not None and self.bring is not None
+    
+    def is_lists_cache_valid(self) -> bool:
+        """Prüft, ob Listen-Cache noch gültig ist."""
+        if self.lists is None or self.lists_timestamp is None:
+            return False
+        return time.time() - self.lists_timestamp < LISTS_CACHE_TIMEOUT
+    
+    def invalidate_session(self):
+        """Invalidiert die Session."""
+        self.session = None
+        self.bring = None
+        self.session_timestamp = None
+    
+    def invalidate_lists(self):
+        """Invalidiert den Listen-Cache."""
+        self.lists = None
+        self.lists_timestamp = None
+    
+    def set_session(self, session: aiohttp.ClientSession, bring: Bring):
+        """Speichert die Session."""
+        self.session = session
+        self.bring = bring
+        self.session_timestamp = time.time()
+    
+    def set_lists(self, lists):
+        """Speichert Listen und Timestamp."""
+        self.lists = lists
+        self.lists_timestamp = time.time()
+    
+    def get_cache_stats(self) -> dict:
+        """Gibt Statistiken über Cache-Hits/Misses zurück."""
+        return {
+            "session_hits": self.cache_hits["session"],
+            "session_misses": self.cache_misses["session"],
+            "lists_hits": self.cache_hits["lists"],
+            "lists_misses": self.cache_misses["lists"],
+        }
+
+# Globale Cache-Instanz
+bring_cache = BringCache()
 
 
 def _format_item_display(item: dict) -> str:
@@ -98,12 +162,14 @@ def record_audio(duration: int = RECORDING_DURATION, samplerate: int = SAMPLE_RA
     return audio_bytes
 
 
-async def add_items_to_bring(items: list):
+async def add_items_to_bring(items: list, max_retries: int = 2):
     """
     Fügt Artikel zur Bring! Einkaufsliste hinzu.
+    OPTIMIERT mit: Login-Cache, Parallel Requests, Listen-Cache
     
     Args:
         items: Liste mit Artikeln [{name: ..., specification: ...}]
+        max_retries: Maximale Anzahl von Wiederholungen bei Fehlern
     """
     bring_email = os.getenv("BRING_EMAIL")
     bring_password = os.getenv("BRING_PASSWORD")
@@ -111,50 +177,131 @@ async def add_items_to_bring(items: list):
     if not bring_email or not bring_password:
         print("[red]Bring! Anmeldeinformationen nicht in .env gefunden.[/red]")
         speak("Fehler bei den Anmeldedaten.")
-        return
+        return False
     
     print("[cyan]Verbinde mit Bring! API...[/cyan]")
     
-    try:
-        async with aiohttp.ClientSession() as session:
-            bring = Bring(session, bring_email, bring_password)
-            await bring.login()
+    for attempt in range(max_retries):
+        try:
+            step_times = {}
             
-            # Lade Listen
-            list_response = await bring.load_lists()
-            lists = list_response.lists
+            # OPTIMIERUNG 1: Login-Cache prüfen
+            session_start = time.time()
+            if not bring_cache.is_session_valid():
+                print("[dim]  ➤ Neue Session (Login-Cache ungültig)[/dim]")
+                bring_cache.cache_misses["session"] += 1
+                session = aiohttp.ClientSession()
+                bring = Bring(session, bring_email, bring_password)
+                
+                login_start = time.time()
+                await bring.login()
+                step_times["login"] = time.time() - login_start
+                
+                bring_cache.set_session(session, bring)
+                print(f"[dim]    Login: {step_times['login']:.2f}s[/dim]")
+            else:
+                print("[dim]  ✓ Verwende gecachte Session (Cache Hit!)[/dim]")
+                bring_cache.cache_hits["session"] += 1
+                session = bring_cache.session
+                bring = bring_cache.bring
+            
+            step_times["session"] = time.time() - session_start
+            
+            # OPTIMIERUNG 3: Listen-Cache prüfen
+            lists_start = time.time()
+            if bring_cache.is_lists_cache_valid():
+                print("[dim]  ✓ Verwende gecachte Listen (5 Min Cache Hit!)[/dim]")
+                bring_cache.cache_hits["lists"] += 1
+                lists = bring_cache.lists
+            else:
+                print("[dim]  ➤ Lade Listen neu[/dim]")
+                bring_cache.cache_misses["lists"] += 1
+                list_response = await bring.load_lists()
+                lists = list_response.lists
+                bring_cache.set_lists(lists)
+            
+            step_times["lists"] = time.time() - lists_start
             
             if not lists:
                 print("[red]Keine Einkaufslisten gefunden.[/red]")
                 speak("Fehler beim Laden der Listen.")
-                return
+                bring_cache.invalidate_session()
+                return False
             
             # Verwende erste Liste
             shopping_list = lists[0]
             print(f"[cyan]Füge Artikel zur Liste '{shopping_list.name}' hinzu...[/cyan]")
             
-            # Füge Artikel einzeln hinzu
+            # OPTIMIERUNG 2: Artikel parallel speichern (statt for-Loop)
+            save_tasks = []
             for item in items:
                 item_name = item.get('name')
                 if not item_name:
                     continue
                 
                 specification = item.get('specification', '')
-                await bring.save_item(shopping_list.listUuid, item_name, specification)
+                # Erstelle Task für paralleles Speichern
+                task = bring.save_item(shopping_list.listUuid, item_name, specification)
+                save_tasks.append((task, item_name, specification))
+            
+            # Führe alle Save-Tasks parallel aus
+            if save_tasks:
+                save_start = time.time()
+                try:
+                    await asyncio.gather(*save_tasks, return_exceptions=True)
+                except Exception as e:
+                    print(f"[yellow]Fehler beim parallelen Speichern: {e}[/yellow]")
+                    raise
                 
-                spec_info = f" mit '{specification}'" if specification else ""
-                print(f"- [green]{item_name}{spec_info}[/green]")
+                step_times["save"] = time.time() - save_start
+                
+                # Ausgabe nach parallelem Ausführen
+                for _, item_name, specification in save_tasks:
+                    spec_info = f" mit '{specification}'" if specification else ""
+                    print(f"- [green]{item_name}{spec_info}[/green]")
             
             print("[bold green]Alle Artikel hinzugefügt![/bold green]")
+            
+            # Zeige Performance-Stats
+            total_time = sum(step_times.values())
+            print(f"[dim]Performance: Gesamt {total_time:.2f}s " +
+                  f"(Login: {step_times.get('login', 0):.2f}s, " +
+                  f"Listen: {step_times['lists']:.2f}s, " +
+                  f"Speichern: {step_times.get('save', 0):.2f}s)[/dim]")
             
             # Vorlesen hinzugefügter Artikel
             speech_text = _format_items_for_speech(items)
             if speech_text:
                 speak(f"Ok, ich habe {speech_text} hinzugefügt")
+            
+            return True
+        
+        except asyncio.TimeoutError:
+            print(f"[yellow]Timeout bei Bring! API (Versuch {attempt + 1}/{max_retries})[/yellow]")
+            bring_cache.invalidate_session()
+            if attempt < max_retries - 1:
+                await asyncio.sleep(1)
+                continue
+            speak("Timeout bei der Verbindung.")
+            return False
+        
+        except aiohttp.ClientError as e:
+            print(f"[yellow]Verbindungsfehler mit Bring! API: {e} (Versuch {attempt + 1}/{max_retries})[/yellow]")
+            bring_cache.invalidate_session()
+            if attempt < max_retries - 1:
+                await asyncio.sleep(1)
+                continue
+            speak("Verbindungsfehler.")
+            return False
+        
+        except Exception as e:
+            print(f"[red]Fehler mit Bring! API: {e}[/red]")
+            logger.exception("Detaillierter Fehler:")
+            bring_cache.invalidate_session()
+            speak("Ein Fehler ist aufgetreten.")
+            return False
     
-    except Exception as e:
-        print(f"[red]Fehler mit Bring! API: {e}[/red]")
-        speak("Verbindungsfehler.")
+    return False
 
 
 def main():
