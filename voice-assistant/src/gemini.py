@@ -83,6 +83,11 @@ def extract_shopping_list_from_audio(audio_bytes: bytes) -> list:
         return []
     except requests.exceptions.HTTPError as e:
         error_msg = "Fehler bei Gemini API"
+        # Rate Limit Handling (429)
+        if e.response.status_code == 429:
+            error_msg = "Gemini API Rate Limit erreicht - bitte später versuchen"
+            print(f"[yellow]{error_msg}[/yellow]")
+            return []
         try:
             error_msg += f": {e.response.json().get('error', {}).get('message', str(e))}"
         except Exception:

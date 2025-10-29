@@ -23,7 +23,7 @@ if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # Setup Logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Konstanten
@@ -76,6 +76,19 @@ class BringCache:
         self.session = None
         self.bring = None
         self.session_timestamp = None
+    
+    async def close_session(self):
+        """Schließt die aiohttp Session sauber (für Resource-Cleanup bei 24/7)."""
+        if self.session is not None:
+            try:
+                await self.session.close()
+                logger.info("aiohttp Session geschlossen (Resource Cleanup)")
+            except Exception as e:
+                logger.warning(f"Fehler beim Schließen der Session: {e}")
+            finally:
+                self.session = None
+                self.bring = None
+                self.session_timestamp = None
     
     def invalidate_lists(self):
         """Invalidiert den Listen-Cache."""
@@ -207,7 +220,8 @@ async def add_items_to_bring(items: list, max_retries: int = 2):
             session_start = time.time()
             if not bring_cache.is_session_valid() or bring_cache.is_session_expired():
                 if bring_cache.is_session_expired():
-                    print("[dim]  ➤ Session abgelaufen (3h) - Neue Session[/dim]")
+                    print("[dim]  ➤ Session abgelaufen (3h) - Schließe alte Session...[/dim]")
+                    await bring_cache.close_session()
                 else:
                     print("[dim]  ➤ Neue Session (Cache ungültig)[/dim]")
                 bring_cache.cache_misses["session"] += 1
