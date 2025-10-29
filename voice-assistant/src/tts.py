@@ -4,6 +4,7 @@ import tempfile
 import subprocess
 from gtts import gTTS
 from .utils import play_audio_file
+import asyncio
 
 # Piper TTS Modellpfad
 PIPER_MODEL_PATH = os.path.join(os.path.dirname(__file__), 'voices', 'Pavoque_low.onnx')
@@ -46,10 +47,14 @@ async def generate_tts_async(text: str, lang: str = "de") -> str:
     start_time = time.time()
     
     try:
-        # Erstelle MP3 und speichere
+        # Erstelle MP3 und speichere (blockierende Arbeit in Thread auslagern)
         with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
             mp3_path = tmp.name
-            gTTS(text=text, lang=lang).save(mp3_path)
+
+        def _save_gtts(path: str, t: str, l: str):
+            gTTS(text=t, lang=l).save(path)
+
+        await asyncio.to_thread(_save_gtts, mp3_path, text, lang)
         
         duration = time.time() - start_time
         print(f"[dim]🔊 TTS generiert ('{text[:30]}...'): {duration:.2f}s[/dim]")

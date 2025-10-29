@@ -34,6 +34,7 @@ SIGNAL_START = "signal.wav"
 SIGNAL_END = "signalAus.wav"
 LISTS_CACHE_TIMEOUT = 300  # 5 Minuten Cache für Listen
 SESSION_MAX_AGE = 3600 * 3  # 3 Stunden - nach dieser Zeit neu-login (24/7 Stabilität)
+NO_ITEMS_ADDED_AUDIO = os.path.join(os.path.dirname(__file__), "src", "audio", "no_items_added.mp3")
 
 # Cache für Bring! Session und Listen
 class BringCache:
@@ -225,7 +226,8 @@ async def add_items_to_bring(items: list, max_retries: int = 2):
                 else:
                     print("[dim]  ➤ Neue Session (Cache ungültig)[/dim]")
                 bring_cache.cache_misses["session"] += 1
-                session = aiohttp.ClientSession()
+                timeout = aiohttp.ClientTimeout(total=30, connect=5, sock_connect=5, sock_read=25)
+                session = aiohttp.ClientSession(timeout=timeout)
                 bring = Bring(session, bring_email, bring_password)
                 
                 login_start = time.time()
@@ -259,7 +261,7 @@ async def add_items_to_bring(items: list, max_retries: int = 2):
             
             if not lists:
                 print("[red]Keine Einkaufslisten gefunden.[/red]")
-                bring_cache.invalidate_session()
+                await bring_cache.close_session()
                 return False
             
             # Verwende erste Liste
@@ -282,17 +284,27 @@ async def add_items_to_bring(items: list, max_retries: int = 2):
             if save_tasks:
                 save_start = time.time()
                 try:
-                    await asyncio.gather(*save_tasks, return_exceptions=True)
+                    save_coros = [t for (t, _, _) in save_tasks]
+                    results = await asyncio.gather(*save_coros, return_exceptions=True)
                 except Exception as e:
                     print(f"[yellow]Fehler beim parallelen Speichern: {e}[/yellow]")
                     raise
                 
                 step_times["save"] = time.time() - save_start
                 
-                # Ausgabe nach parallelem Ausführen
-                for _, item_name, specification in save_tasks:
-                    spec_info = f" mit '{specification}'" if specification else ""
-                    print(f"- [green]{item_name}{spec_info}[/green]")
+                # Ergebnisse prüfen und ausgeben
+                all_ok = True
+                for (result, (_, item_name, specification)) in zip(results, save_tasks):
+                    if isinstance(result, Exception):
+                        all_ok = False
+                        print(f"[yellow]- Fehler bei '{item_name}': {result}[/yellow]")
+                    else:
+                        spec_info = f" mit '{specification}'" if specification else ""
+                        print(f"- [green]{item_name}{spec_info}[/green]")
+
+                if not all_ok:
+                    print("[yellow]Nicht alle Artikel konnten gespeichert werden.[/yellow]")
+                    return False
             
             print("[bold green]Alle Artikel hinzugefügt![/bold green]")
             
@@ -307,7 +319,7 @@ async def add_items_to_bring(items: list, max_retries: int = 2):
         
         except asyncio.TimeoutError:
             print(f"[yellow]Timeout bei Bring! API (Versuch {attempt + 1}/{max_retries})[/yellow]")
-            bring_cache.invalidate_session()
+            await bring_cache.close_session()
             if attempt < max_retries - 1:
                 await asyncio.sleep(1)
                 continue
@@ -318,8 +330,8 @@ async def add_items_to_bring(items: list, max_retries: int = 2):
             # 401/403 Fehler = Session-Problem
             if "401" in error_str or "403" in error_str or "unauthorized" in error_str:
                 print(f"[yellow]Session-Fehler (401/403): {e} (Versuch {attempt + 1}/{max_retries})[/yellow]")
-                print("[dim]  → Invalidiere Session und versuche neu-login[/dim]")
-                bring_cache.invalidate_session()
+                print("[dim]  → Schließe Session und versuche Neu-Login[/dim]")
+                await bring_cache.close_session()
                 if attempt < max_retries - 1:
                     await asyncio.sleep(1)
                     continue
@@ -327,13 +339,13 @@ async def add_items_to_bring(items: list, max_retries: int = 2):
             else:
                 print(f"[red]Bring! API Fehler: {e} (Versuch {attempt + 1}/{max_retries})[/red]")
                 logger.exception("Detaillierter Fehler:")
-                bring_cache.invalidate_session()
+                await bring_cache.close_session()
                 return False
         
         except Exception as e:
             print(f"[red]Fehler mit Bring! API: {e}[/red]")
             logger.exception("Detaillierter Fehler:")
-            bring_cache.invalidate_session()
+            await bring_cache.close_session()
             return False
     
     return False
@@ -360,6 +372,13 @@ def main():
             
             if not items:
                 print("[yellow]Keine Artikel erkannt.[/yellow]")
+                # Spiele vorgenerierte MP3 ab: "Nichts auf die Liste gesetzt"
+                if os.path.exists(NO_ITEMS_ADDED_AUDIO):
+                    try:
+                        print("[cyan]▶ Spiele Nachricht ab...[/cyan]")
+                        play_audio_file(NO_ITEMS_ADDED_AUDIO)
+                    except Exception as e:
+                        print(f"[yellow]Fehler beim Abspielen: {e}[/yellow]")
                 continue
             
             # Zeige erkannte Artikel
@@ -381,7 +400,11 @@ def main():
     except KeyboardInterrupt:
         print("\n[yellow]Shutdown eingeleitet...[/yellow]")
     finally:
-        # Cleanup: Event Loop schließen
+        # Cleanup: Bring!-Session schließen und Event Loop beenden
+        try:
+            loop.run_until_complete(bring_cache.close_session())
+        except Exception:
+            pass
         loop.close()
         print("[green]Assistent beendet.[/green]")
 
@@ -432,21 +455,26 @@ async def _process_items_with_tts_parallel(items: list):
     
     if audio_file:
         print(f"[dim]  ✓ TTS fertig: {tts_time:.2f}s[/dim]")
-        
-        # SCHRITT 4: Spiele Audio ab
-        print("[cyan]  ▶ Spiele Audio ab...[/cyan]")
-        try:
-            play_audio_file(audio_file)
-            
-            # Cleanup
+        if bring_result:
+            # SCHRITT 4: Spiele Audio ab (nur bei Erfolg der Bring!-Operation)
+            print("[cyan]  ▶ Spiele Audio ab...[/cyan]")
+            try:
+                play_audio_file(audio_file)
+            except Exception as e:
+                print(f"[yellow]Fehler beim Abspielen: {e}[/yellow]")
+            finally:
+                if os.path.exists(audio_file):
+                    try:
+                        os.unlink(audio_file)
+                    except:
+                        pass
+        else:
+            # Kein Abspielen bei fehlgeschlagener Bring!-Operation, aber Datei bereinigen
             if os.path.exists(audio_file):
                 try:
                     os.unlink(audio_file)
                 except:
                     pass
-        
-        except Exception as e:
-            print(f"[yellow]Fehler beim Abspielen: {e}[/yellow]")
     else:
         print("[yellow]  ⚠ TTS-Generierung fehlgeschlagen[/yellow]")
     
