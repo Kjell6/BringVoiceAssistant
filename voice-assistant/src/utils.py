@@ -18,7 +18,7 @@ def play_audio_file(audio_path: str):
     system = platform.system()
     resampled_path = None
     
-    # Audio-Device aus zentraler Konfiguration
+    # Audio-Device aus zentraler Konfiguration (default wählt automatisch beste Gerät)
     audio_device = AudioConfig.ALSA_AUDIO_DEVICE
     
     try:
@@ -35,9 +35,10 @@ def play_audio_file(audio_path: str):
                     "-b", "16",
                     resampled_path,
                 ], check=True, capture_output=True)
-                subprocess.run(["aplay", "-D", audio_device, resampled_path], check=True, capture_output=True)
+                subprocess.run(["aplay", "-D", audio_device, resampled_path], check=True, capture_output=True, timeout=5)
             except FileNotFoundError:
-                subprocess.run(["aplay", "-D", audio_device, audio_path], check=True, capture_output=True)
+                # Wenn sox nicht verfügbar, versuche direkt abzuspielen
+                subprocess.run(["aplay", "-D", audio_device, audio_path], check=True, capture_output=True, timeout=5)
         else:
             print(f"Warnung: Kein Audio-Player für Betriebssystem '{system}' gefunden.")
     finally:

@@ -110,8 +110,22 @@ def speak(text: str, lang: str = "de"):
             wav_path = wav_file.name
         # Nutze ffmpeg zur Umwandlung
         import subprocess
-        subprocess.run(["ffmpeg", "-y", "-i", mp3_path, wav_path], check=True, capture_output=True)
-        play_audio_file(wav_path)
+        try:
+            subprocess.run(["ffmpeg", "-y", "-i", mp3_path, "-acodec", "pcm_s16le", "-ar", "48000", wav_path], check=True, capture_output=True, timeout=10)
+        except subprocess.TimeoutExpired:
+            print("Fehler: ffmpeg Konvertierung hat zu lange gedauert")
+            return
+        except Exception as e:
+            print(f"Fehler bei ffmpeg Konvertierung: {e}")
+            return
+        
+        # Versuche Audio abzuspielen
+        try:
+            play_audio_file(wav_path)
+        except Exception as e:
+            print(f"Fehler beim Abspielen der TTS-Ausgabe: {e}")
+            # Stille Fehler - nicht so kritisch
+            
     except Exception as e:
         print(f"Fehler bei gspeak: {e}")
     finally:

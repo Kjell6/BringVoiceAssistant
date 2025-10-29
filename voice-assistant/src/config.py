@@ -18,7 +18,7 @@ class AudioConfig:
     PVRECORDER_DEVICE_INDEX = int(os.getenv('PVRECORDER_DEVICE_INDEX', '3'))
     
     # ALSA aplay (für Audioausgabe)
-    ALSA_AUDIO_DEVICE = os.getenv('ALSA_AUDIO_DEVICE', 'hw:0,0')
+    ALSA_AUDIO_DEVICE = os.getenv('ALSA_AUDIO_DEVICE', 'default')
     
     def __repr__(self):
         return (
