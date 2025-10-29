@@ -5,31 +5,41 @@ import os
 
 def play_audio_file(audio_path: str):
     """
-    Optimierte Audio-Wiedergabe: Spielt MP3/OGG/WAV direkt ab ohne unnötige Konvertierung.
-    Unterstützt mehrere Player-Optionen mit intelligenter Fallback-Chain.
+    Intelligente Audio-Wiedergabe: WAV/MP3 direkt abspielen ohne unnötige Konvertierung.
     
-    Priorität:
-    1. mpg123 (schnellster MP3-Player)
-    2. ffplay (breit unterstützt)
-    3. aplay mit ffmpeg Konvertierung (Fallback)
+    Strategie:
+    - WAV: aplay direkt (schnell, Standard auf Linux)
+    - MP3: mpg123 → ffplay → (aplay mit Konvertierung)
+    - Andere: ffplay → aplay mit Konvertierung
     
     Args:
-        audio_path (str): Pfad zur abzuspielenden Audiodatei
+        audio_path: Pfad zur abzuspielenden Audiodatei
     """
     system = platform.system()
+    file_ext = os.path.splitext(audio_path)[1].lower()
     
     try:
         if system == "Darwin":  # macOS
             subprocess.run(["afplay", audio_path], check=True, capture_output=True)
+        
         elif system == "Linux":
-            # Versuche mpg123 zuerst (MP3, schnell)
-            try:
-                subprocess.run(["mpg123", "-q", audio_path], check=True, capture_output=True, timeout=60)
-                return
-            except (FileNotFoundError, subprocess.CalledProcessError):
-                pass
+            # WAV-Dateien: Direktes aplay (schnell, Standard)
+            if file_ext == ".wav":
+                try:
+                    subprocess.run(["aplay", audio_path], check=True, capture_output=True, timeout=60)
+                    return
+                except FileNotFoundError:
+                    pass  # aplay nicht vorhanden, versuche ffplay
             
-            # Fallback: ffplay (auch schnell, breit unterstützt)
+            # MP3-Dateien: mpg123 zuerst (schnellster MP3-Player)
+            if file_ext == ".mp3":
+                try:
+                    subprocess.run(["mpg123", "-q", audio_path], check=True, capture_output=True, timeout=60)
+                    return
+                except (FileNotFoundError, subprocess.CalledProcessError):
+                    pass  # mpg123 nicht vorhanden oder fehlgeschlagen
+            
+            # Fallback: ffplay (breit unterstützt, viele Formate)
             try:
                 subprocess.run(
                     ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", audio_path],
@@ -41,8 +51,7 @@ def play_audio_file(audio_path: str):
             except (FileNotFoundError, subprocess.CalledProcessError):
                 pass
             
-            # Letzter Fallback: aplay (standardmäßig verfügbar, aber nur WAV/PCM)
-            # Für MP3 konvertieren
+            # Letzter Fallback: aplay mit ffmpeg Konvertierung (nur wenn nötig)
             wav_path = None
             try:
                 wav_path = tempfile.NamedTemporaryFile(suffix=".wav", delete=False).name
@@ -56,8 +65,10 @@ def play_audio_file(audio_path: str):
             finally:
                 if wav_path and os.path.exists(wav_path):
                     os.unlink(wav_path)
+        
         else:
-            print(f"Warnung: Kein Audio-Player für Betriebssystem '{system}' gefunden.")
+            print(f"Warnung: Kein Audio-Player für '{system}' verfügbar.")
+    
     except FileNotFoundError:
         print(f"Fehler: Audio-Player nicht gefunden.")
     except subprocess.TimeoutExpired:
