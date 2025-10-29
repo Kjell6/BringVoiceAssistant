@@ -46,12 +46,12 @@ def extract_shopping_list_from_audio(audio_bytes: bytes) -> list:
         audio_bytes: WAV Audio-Daten als Bytes
     
     Returns:
-        Liste mit Einkaufsartikeln: [{"name": "...", "specification": "..."}]
+        Dict mit: {"items": list, "error": str oder None}
     """
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         print("Fehler: GEMINI_API_KEY nicht in .env gesetzt")
-        return []
+        return {"items": [], "error": "GEMINI_API_KEY nicht konfiguriert"}
     
     # Bereite Request vor
     audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
@@ -80,23 +80,23 @@ def extract_shopping_list_from_audio(audio_bytes: bytes) -> list:
         response.raise_for_status()
     except requests.exceptions.Timeout:
         print("Fehler: Gemini API Timeout (30s)")
-        return []
+        return {"items": [], "error": "Gemini API Timeout"}
     except requests.exceptions.HTTPError as e:
         error_msg = "Fehler bei Gemini API"
         # Rate Limit Handling (429)
         if e.response.status_code == 429:
             error_msg = "Gemini API Rate Limit erreicht - bitte später versuchen"
             print(f"[yellow]{error_msg}[/yellow]")
-            return []
+            return {"items": [], "error": error_msg}
         try:
             error_msg += f": {e.response.json().get('error', {}).get('message', str(e))}"
         except Exception:
             error_msg += f": {e}"
         print(error_msg)
-        return []
+        return {"items": [], "error": error_msg}
     except Exception as e:
         print(f"Fehler bei Gemini API Aufruf: {e}")
-        return []
+        return {"items": [], "error": f"Gemini API Fehler: {e}"}
     
     # Parse Response
     try:
@@ -112,7 +112,7 @@ def extract_shopping_list_from_audio(audio_bytes: bytes) -> list:
         
         if not text_output:
             print("Warnung: Keine Textantwort von Gemini erhalten")
-            return []
+            return {"items": [], "error": "Keine Textantwort von Gemini"}
         
         # Parse JSON
         json_text = _extract_json_from_response(text_output)
@@ -121,13 +121,13 @@ def extract_shopping_list_from_audio(audio_bytes: bytes) -> list:
         # Validiere Struktur
         if not _validate_shopping_list(shopping_list):
             print("Warnung: Ungültige Einkaufslisten-Struktur")
-            return []
+            return {"items": [], "error": None}  # Keine Fehler, nur ungültiges Format
         
-        return shopping_list
+        return {"items": shopping_list, "error": None}
     
     except (json.JSONDecodeError, KeyError, IndexError, TypeError) as e:
         print(f"Fehler beim Parse der Gemini-Antwort: {e}")
-        return []
+        return {"items": [], "error": None}  # Keine Fehler bei der API, nur Parse-Problem
     except Exception as e:
         print(f"Unerwarteter Fehler: {e}")
-        return []
+        return {"items": [], "error": f"Unerwarteter Fehler: {e}"}

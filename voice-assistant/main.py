@@ -203,13 +203,16 @@ async def add_items_to_bring(items: list, max_retries: int = 2):
     Args:
         items: Liste mit Artikeln [{name: ..., specification: ...}]
         max_retries: Maximale Anzahl von Wiederholungen bei Fehlern
+    
+    Returns:
+        Dict mit: {"success": bool, "error": str oder None}
     """
     bring_email = os.getenv("BRING_EMAIL")
     bring_password = os.getenv("BRING_PASSWORD")
     
     if not bring_email or not bring_password:
         print("[red]Bring! Anmeldeinformationen nicht in .env gefunden.[/red]")
-        return False
+        return {"success": False, "error": "Bring! Anmeldeinformationen nicht gefunden"}
     
     print("[cyan]Verbinde mit Bring! API...[/cyan]")
     
@@ -262,7 +265,7 @@ async def add_items_to_bring(items: list, max_retries: int = 2):
             if not lists:
                 print("[red]Keine Einkaufslisten gefunden.[/red]")
                 await bring_cache.close_session()
-                return False
+                return {"success": False, "error": "Keine Einkaufslisten gefunden"}
             
             # Verwende erste Liste
             shopping_list = lists[0]
@@ -304,7 +307,7 @@ async def add_items_to_bring(items: list, max_retries: int = 2):
 
                 if not all_ok:
                     print("[yellow]Nicht alle Artikel konnten gespeichert werden.[/yellow]")
-                    return False
+                    return {"success": False, "error": "Nicht alle Artikel konnten gespeichert werden."}
             
             print("[bold green]Alle Artikel hinzugefügt![/bold green]")
             
@@ -315,7 +318,7 @@ async def add_items_to_bring(items: list, max_retries: int = 2):
                   f"Listen: {step_times['lists']:.2f}s, " +
                   f"Speichern: {step_times.get('save', 0):.2f}s)[/dim]")
             
-            return True
+            return {"success": True, "error": None}
         
         except asyncio.TimeoutError:
             print(f"[yellow]Timeout bei Bring! API (Versuch {attempt + 1}/{max_retries})[/yellow]")
@@ -323,7 +326,7 @@ async def add_items_to_bring(items: list, max_retries: int = 2):
             if attempt < max_retries - 1:
                 await asyncio.sleep(1)
                 continue
-            return False
+            return {"success": False, "error": "Timeout bei Bring! API"}
         
         except (BringAuthException, BringRequestException, BringParseException) as e:
             error_str = str(e).lower()
@@ -335,20 +338,20 @@ async def add_items_to_bring(items: list, max_retries: int = 2):
                 if attempt < max_retries - 1:
                     await asyncio.sleep(1)
                     continue
-                return False
+                return {"success": False, "error": f"Session-Fehler: {e}"}
             else:
                 print(f"[red]Bring! API Fehler: {e} (Versuch {attempt + 1}/{max_retries})[/red]")
                 logger.exception("Detaillierter Fehler:")
                 await bring_cache.close_session()
-                return False
+                return {"success": False, "error": f"Bring! API Fehler: {e}"}
         
         except Exception as e:
             print(f"[red]Fehler mit Bring! API: {e}[/red]")
             logger.exception("Detaillierter Fehler:")
             await bring_cache.close_session()
-            return False
+            return {"success": False, "error": f"Unerwarteter Fehler: {e}"}
     
-    return False
+    return {"success": False, "error": "Unbekannter Fehler bei Bring! API"}
 
 
 def main():
@@ -368,7 +371,32 @@ def main():
             audio_bytes = record_audio()
             
             # Extrahiere Artikel aus Audio
-            items = extract_shopping_list_from_audio(audio_bytes)
+            items_result = extract_shopping_list_from_audio(audio_bytes)
+            items = items_result.get("items", [])
+            gemini_error = items_result.get("error")
+            
+            if gemini_error:
+                # Gemini API hatte einen Fehler
+                print(f"[red]Fehler bei Gemini API: {gemini_error}[/red]")
+                try:
+                    print("[cyan]🔊 Lese Fehlermeldung vor...[/cyan]")
+                    # Nutze event loop um TTS zu generieren
+                    async def play_error_message():
+                        error_audio = await generate_tts_async(gemini_error, lang="de")
+                        if error_audio:
+                            try:
+                                play_audio_file(error_audio)
+                            finally:
+                                if os.path.exists(error_audio):
+                                    try:
+                                        os.unlink(error_audio)
+                                    except:
+                                        pass
+                    
+                    loop.run_until_complete(play_error_message())
+                except Exception as e:
+                    print(f"[yellow]Fehler beim Abspielen der Fehlermeldung: {e}[/yellow]")
+                continue
             
             if not items:
                 print("[yellow]Keine Artikel erkannt.[/yellow]")
@@ -443,10 +471,10 @@ async def _process_items_with_tts_parallel(items: list):
     bring_result = await add_items_to_bring(items)
     bring_time = time.time() - bring_start
     
-    if bring_result:
+    if bring_result["success"]:
         print(f"[dim]  ✓ Bring! fertig: {bring_time:.2f}s[/dim]")
     else:
-        print("[yellow]  ⚠ Bring! hatte Fehler[/yellow]")
+        print(f"[yellow]  ⚠ Bring! hatte Fehler: {bring_result['error']}[/yellow]")
     
     # SCHRITT 3: Warte auf TTS-Fertigstellung
     print("[dim]  ➤ Warte auf TTS-Generierung...[/dim]")
@@ -455,7 +483,7 @@ async def _process_items_with_tts_parallel(items: list):
     
     if audio_file:
         print(f"[dim]  ✓ TTS fertig: {tts_time:.2f}s[/dim]")
-        if bring_result:
+        if bring_result["success"]:
             # SCHRITT 4: Spiele Audio ab (nur bei Erfolg der Bring!-Operation)
             print("[cyan]  ▶ Spiele Audio ab...[/cyan]")
             try:
@@ -477,6 +505,22 @@ async def _process_items_with_tts_parallel(items: list):
                     pass
     else:
         print("[yellow]  ⚠ TTS-Generierung fehlgeschlagen[/yellow]")
+    
+    # Bei Fehler von Bring!: Error-Message dynamisch mit TTS vorlesen
+    if not bring_result["success"] and bring_result["error"]:
+        print("[cyan]  ➤ Lese Error-Message vor...[/cyan]")
+        error_audio = await generate_tts_async(bring_result["error"], lang="de")
+        if error_audio:
+            try:
+                play_audio_file(error_audio)
+            except Exception as e:
+                print(f"[yellow]Fehler beim Abspielen der Error-Message: {e}[/yellow]")
+            finally:
+                if os.path.exists(error_audio):
+                    try:
+                        os.unlink(error_audio)
+                    except:
+                        pass
     
     # Performance-Statistik
     total_time = time.time() - workflow_start
