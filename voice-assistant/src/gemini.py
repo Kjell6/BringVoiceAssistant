@@ -1,100 +1,128 @@
 import os
-import requests
 import json
+import base64
+import requests
 
-def extract_shopping_list_from_audio(audio_bytes):
+# Konstanten
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+PROMPT = (
+    "Extrahiere alle Produkte aus diesem Audio als JSON-Array. "
+    "Format: [{\"name\": \"Produktname\", \"specification\": \"Menge/Details\"}]. "
+    "Zahlen als Zahlen (nicht Text). Gewichte in kg/g. "
+    "Specification leer lassen wenn nicht vorhanden. "
+    "Bei Stille: leeres Array '[]'."
+)
+
+
+def _extract_json_from_response(text: str) -> str:
+    """Extrahiert JSON aus Markdown-Codeblöcken falls vorhanden."""
+    if '```json' in text:
+        return text.split('```json')[1].split('```')[0].strip()
+    elif text.startswith('```') and text.endswith('```'):
+        return text[3:-3].strip()
+    return text
+
+
+def _validate_shopping_list(data: list) -> bool:
+    """Validiert die Struktur der Einkaufsliste."""
+    if not isinstance(data, list):
+        return False
+    
+    for item in data:
+        if not isinstance(item, dict) or 'name' not in item:
+            return False
+        # Stelle sicher, dass 'specification' existiert
+        if 'specification' not in item:
+            item['specification'] = ""
+    
+    return True
+
+
+def extract_shopping_list_from_audio(audio_bytes: bytes) -> list:
+    """
+    Extrahiert Einkaufsliste aus Audio mittels Gemini API.
+    
+    Args:
+        audio_bytes: WAV Audio-Daten als Bytes
+    
+    Returns:
+        Liste mit Einkaufsartikeln: [{"name": "...", "specification": "..."}]
+    """
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        raise RuntimeError("GEMINI_API_KEY nicht gesetzt. Bitte in .env eintragen.")
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
-    headers = {"Content-Type": "application/json"}
-    prompt = (
-        "Extrahiere die Einkaufsliste aus dem folgenden Audio. Gib das Ergebnis als JSON-Array zurück. "
-        "Jedes Element im Array sollte ein Objekt mit den Schlüsseln 'name' und 'specification' sein. "
-        "'name' ist der Produktname (z.B. 'Eier'), 'specification' ist die Mengenangabe (z.B. '2 Stück' oder '1kg'). "
-        "Gewichtsangaben sollten immer in kg oder g sein. Also nicht Kilogramm oder Gramm."
-        "Schreibe Zahlen immer als Zahlen und nicht als Text. Beispiel: '2 Eier' statt 'zwei Eier'. "
-        "Wenn keine Mengenangabe vorhanden ist, lasse 'specification' als leeren String. "
-        "Beachte auch auf Befehle wie schreibe zum Käse dazu, dass es ein brauner sein soll."
-        "Wenn keine Produkte genannt werden oder das Audio nur Stille enthält, gib ein leeres JSON-Array '[]' zurück."
-    )
-    # Audio als base64-codierten String einbetten
-    import base64
+        print("Fehler: GEMINI_API_KEY nicht in .env gesetzt")
+        return []
+    
+    # Bereite Request vor
     audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
-    data = {
-        "contents": [
-            {"parts": [
-                {"text": prompt},
+    payload = {
+        "contents": [{
+            "parts": [
+                {"text": PROMPT},
                 {"inline_data": {
                     "mime_type": "audio/wav",
                     "data": audio_b64
                 }}
-            ]}
-        ],
+            ]
+        }],
         "generationConfig": {"temperature": 0.2}
     }
-    params = {"key": api_key}
+    
+    # API-Aufruf
     try:
-        response = requests.post(url, headers=headers, params=params, json=data, timeout=30)
+        response = requests.post(
+            GEMINI_API_URL,
+            headers={"Content-Type": "application/json"},
+            params={"key": api_key},
+            json=payload,
+            timeout=30
+        )
         response.raise_for_status()
-        result = response.json()
+    except requests.exceptions.Timeout:
+        print("Fehler: Gemini API Timeout (30s)")
+        return []
     except requests.exceptions.HTTPError as e:
-        print(f"[red]Fehler bei der Anfrage an die Gemini API: {e}[/red]")
-        # Versuche, mehr Details aus der Antwort zu bekommen, falls vorhanden
+        error_msg = "Fehler bei Gemini API"
         try:
-            error_details = e.response.json()
-            print(f"[red]API-Fehlerdetails: {error_details.get('error', {}).get('message', 'Keine Details')}[/red]")
-        except (ValueError, AttributeError):
-            print(f"[red]Keine weiteren Fehlerdetails in der API-Antwort.[/red]")
+            error_msg += f": {e.response.json().get('error', {}).get('message', str(e))}"
+        except Exception:
+            error_msg += f": {e}"
+        print(error_msg)
         return []
+    except Exception as e:
+        print(f"Fehler bei Gemini API Aufruf: {e}")
+        return []
+    
+    # Parse Response
     try:
-        candidate = result["candidates"][0]["content"]
-        # Falls 'candidate' kein dict ist oder keine sinnvollen Felder enthält, leere Liste zurückgeben
-        if not isinstance(candidate, dict):
-            print("[Warnung] Unerwartetes Antwortformat von Gemini:", result)
-            print("[Debug] Komplette Gemini-Antwort:", result)
-            return []
-        # Versuche zuerst, das 'parts'-Feld zu lesen
-        parts = candidate.get("parts")
-        if parts and isinstance(parts, list) and "text" in parts[0]:
-            output = parts[0]["text"]
-        # Falls nicht vorhanden, prüfe auf direktes 'text'-Feld
-        elif "text" in candidate:
-            output = candidate["text"]
+        result = response.json()
+        candidate = result.get("candidates", [{}])[0].get("content", {})
+        
+        # Extrahiere Text aus parts oder direktem Feld
+        text_output = None
+        if "parts" in candidate and isinstance(candidate["parts"], list):
+            text_output = candidate["parts"][0].get("text")
         else:
-            # Wenn keine sinnvollen Felder vorhanden sind, leere Liste zurückgeben
-            print("[Warnung] Keine Produkte extrahiert. Antwort von Gemini:", result)
-            print("[Debug] Komplette Gemini-Antwort:", result)
+            text_output = candidate.get("text")
+        
+        if not text_output:
+            print("Warnung: Keine Textantwort von Gemini erhalten")
             return []
-    except (KeyError, IndexError):
-        print("[Fehler] Antwort von Gemini konnte nicht gelesen werden:", result)
-        print("[Debug] Komplette Gemini-Antwort:", result)
+        
+        # Parse JSON
+        json_text = _extract_json_from_response(text_output)
+        shopping_list = json.loads(json_text)
+        
+        # Validiere Struktur
+        if not _validate_shopping_list(shopping_list):
+            print("Warnung: Ungültige Einkaufslisten-Struktur")
+            return []
+        
+        return shopping_list
+    
+    except (json.JSONDecodeError, KeyError, IndexError, TypeError) as e:
+        print(f"Fehler beim Parse der Gemini-Antwort: {e}")
         return []
-    try:
-        # Die Antwort könnte in einem Markdown-Codeblock sein, z.B. ```json ... ```
-        if '```json' in output:
-            output = output.split('```json')[1].split('```')[0].strip()
-        elif output.startswith('```') and output.endswith('```'):
-            output = output[3:-3].strip()
-
-        parsed_list = json.loads(output)
-
-        if not isinstance(parsed_list, list):
-            print(f"[Warnung] Gemini-Antwort ist kein JSON-Array: {parsed_list}")
-            return []
-
-        # Überprüfe die Struktur jedes Elements
-        for item in parsed_list:
-            if not isinstance(item, dict) or 'name' not in item:
-                print(f"[Warnung] Ungültiges Element in der Liste: {item}")
-                return []  # Ungültige Liste verwerfen
-            # Stelle sicher, dass 'specification' immer existiert
-            if 'specification' not in item:
-                item['specification'] = ""
-
-        return parsed_list
-
-    except (json.JSONDecodeError, TypeError) as e:
-        print(f"[Fehler] JSON-Antwort von Gemini konnte nicht verarbeitet werden: {e}")
-        print(f"[Debug] Rohe Antwort: {output}")
+    except Exception as e:
+        print(f"Unerwarteter Fehler: {e}")
         return []
