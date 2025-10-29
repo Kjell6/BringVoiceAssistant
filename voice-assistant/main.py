@@ -34,6 +34,7 @@ SIGNAL_START = "signal.wav"
 SIGNAL_END = "signalAus.wav"
 LISTS_CACHE_TIMEOUT = 300  # 5 Minuten Cache für Listen
 SESSION_MAX_AGE = 3600 * 3  # 3 Stunden - nach dieser Zeit neu-login (24/7 Stabilität)
+NO_ITEMS_ADDED_AUDIO = os.path.join(os.path.dirname(__file__), "src", "audio", "no_items_added.mp3")
 
 # Cache für Bring! Session und Listen
 class BringCache:
@@ -360,6 +361,13 @@ def main():
             
             if not items:
                 print("[yellow]Keine Artikel erkannt.[/yellow]")
+                # Spiele vorgenerierte MP3 ab: "Nichts auf die Liste gesetzt"
+                if os.path.exists(NO_ITEMS_ADDED_AUDIO):
+                    try:
+                        print("[cyan]▶ Spiele Nachricht ab...[/cyan]")
+                        play_audio_file(NO_ITEMS_ADDED_AUDIO)
+                    except Exception as e:
+                        print(f"[yellow]Fehler beim Abspielen: {e}[/yellow]")
                 continue
             
             # Zeige erkannte Artikel
