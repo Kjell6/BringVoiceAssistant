@@ -1,16 +1,18 @@
-# BringVoiceAssistant - Sprachgesteuerter Einkaufslisten-Assistent
+# BringVoiceAssistant - Sprachgesteuerter Einkaufslisten-Assistent 🛒
 
-Ein intelligenter Sprachassistent, der auf das Wakeword "Alexa" hört, deine gesprochenen Einkaufswünsche versteht und automatisch zur Bring! Einkaufsliste hinzufügt.
+Ein intelligenter Sprachassistent für Raspberry Pi, der auf dein Custom Wakeword "heyListe" hört, deine gesprochenen Einkaufswünsche versteht und automatisch zur Bring! Einkaufsliste hinzufügt.
 
-## 🎯 Features
-- **Wakeword-Erkennung**: Aktivierung durch Custom Wakeword "heyListe" oder Standard "Alexa" (Picovoice Porcupine)
-- **Spracherkennung**: Aufnahme und Transkription deiner Einkaufsliste
-- **KI-Analyse**: Extraktion von Einkaufsartikeln mit Google Gemini 2.5 Flash
-- **Bring! Integration**: Automatisches Hinzufügen zur Bring! Einkaufsliste
-- **Audio-Feedback**: Sprachbestätigung der hinzugefügten Artikel
-- **Dauerbetrieb**: Kontinuierliches Lauschen auf Wakeword
+## ✨ Features
 
-## 🚀 Setup
+- **🎤 Wakeword-Erkennung**: Custom Wakeword "heyListe" oder Standard-Wakewords wie "Alexa" (Picovoice Porcupine)
+- **🗣️ Spracherkennung**: Hochwertige Audioaufnahme und Transkription deiner Einkaufswünsche
+- **🤖 KI-Analyse**: Intelligente Extraktion von Einkaufsartikeln mit Google Gemini 2.5 Flash
+- **📱 Bring! Integration**: Automatisches Hinzufügen zur Bring! Einkaufsliste
+- **🔊 Audio-Feedback**: Sprachbestätigung der hinzugefügten Artikel
+- **⏱️ Dauerbetrieb**: Kontinuierliches Lauschen auf Wakeword
+- **⚙️ Zentrale Konfiguration**: Alle Audiogeräte-Einstellungen an einer Stelle
+
+## 🚀 Schnellstart
 
 ### 1. Repository klonen
 ```bash
@@ -32,71 +34,79 @@ venv\Scripts\activate     # Windows
 pip install -r requirements.txt
 ```
 
-### 4. Audio-Geräte konfigurieren
-**Wichtig**: Auf Linux bzw. RaspberryPi Os muss das System wissen, welches Audio-Gerät für die Wiedergabe verwendet werden soll.
+### 4. Audiogeräte identifizieren
 
+Bevor du die Konfiguration einrichtest, musst du die richtigen Geräte-Indizes für dein System finden:
+
+**Für Sounddevice (Audioaufnahme mit Mikrofon):**
 ```bash
-# Verfügbare Audio-Geräte anzeigen
+source venv/bin/activate
+python3 -c "import sounddevice; print(sounddevice.query_devices())"
+```
+
+**Für PvRecorder (Wakeword-Erkennung):**
+```bash
+source venv/bin/activate
+python3 -c "from pvrecorder import PvRecorder; print(PvRecorder.get_available_devices())"
+```
+
+**Für ALSA (Audioausgabe / Lautsprecher):**
+```bash
 aplay -l
 ```
 
-**Beispiel-Ausgabe:**
-```
-**** List of PLAYBACK Hardware Devices ****
-card 0: Headphones [bcm2835 Headphones], device 0: bcm2835 Headphones
-card 1: USB [Jabra SPEAK 510 USB], device 0: USB Audio [USB Audio]
-card 2: vc4hdmi0 [vc4-hdmi-0], device 0: MAI PCM i2s-hifi-0
-```
+### 5. `.env`-Datei konfigurieren
 
-**Konfiguration:**
-- **USB-Lautsprecher**: Verwende `plughw:1,0` (Card 1, Device 0)
-- **HDMI-Audio**: Verwende `plughw:2,0` (Card 2, Device 0)
-- **Standard-Kopfhörer**: Verwende `plughw:0,0` (Card 0, Device 0)
+Erstelle eine `.env`-Datei im `voice-assistant` Verzeichnis mit deinen Einstellungen:
 
-### 5. Umgebungsvariablen konfigurieren
-Erstelle eine `.env`-Datei im `voice-assistant` Verzeichnis:
 ```env
+# ============================================
+# API CREDENTIALS
+# ============================================
+
 # Google Gemini API
 GEMINI_API_KEY=dein_gemini_api_key
 
 # Bring! API Credentials
 BRING_EMAIL=deine_bring_email
 BRING_PASSWORD=dein_bring_passwort
-BRING_LIST_NAME=Zuhause  # Name deiner Bring! Liste
+BRING_LIST_NAME=Zuhause
 
-# Picovoice Access Key
+# Picovoice Access Key (für Wakeword-Erkennung)
 PICOVOICE_ACCESS_KEY=dein_picovoice_key
 
-# Audio-Device Konfiguration
-AUDIO_DEVICE=plughw:1,0  # Anpassen an dein Audio-Gerät
+# ============================================
+# AUDIO-GERÄTE KONFIGURATION (zentral)
+# ============================================
 
-# Wakeword-Konfiguration (optional)
-# Nur nötig falls du andere vorgefertigte Wakewords als "Alexa" verwenden möchtest:
-# WAKEWORD_KEYWORD=hey google  # oder "hey siri", "computer", etc.
-# WAKEWORD_NAME=Hey Google  # Anzeigename für das Wakeword
+# Sounddevice Mikrofonindex (für Audioaufnahme)
+# Beispiel: 0 = Jabra SPEAK 510 USB
+SOUNDDEVICE_MICROPHONE_INDEX=0
+
+# PvRecorder Geräteindex (für Wakeword-Erkennung)
+# Beispiel: 3 = Jabra SPEAK 510 USB
+PVRECORDER_DEVICE_INDEX=3
+
+# ALSA Audioausgabegerät (für Lautsprecher/Signaltöne)
+# Beispiele: hw:0,0 (Jabra), default, plughw:0,0
+ALSA_AUDIO_DEVICE=hw:0,0
 ```
 
-**Audio-Device-Beispiele:**
-- `plughw:1,0` - USB-Lautsprecher (Card 1)
-- `plughw:0,0` - Standard-Kopfhörer (Card 0)
-- `plughw:2,0` - HDMI-Audio (Card 2)
-- `default` - System-Standard
-
-## 🎮 Nutzung
+## 🎮 Bedienung
 
 ### Starten
 ```bash
+cd voice-assistant
+source venv/bin/activate
 python main.py
 ```
 
-### Bedienung
-1. **Warten**: Das System lauscht kontinuierlich auf das konfigurierte Wakeword (Standard: "heyListe" oder "Alexa")
-2. **Aktivieren**: Sage das Wakeword und warte auf das Bestätigungssignal
+### Nutzung
+1. **Warten**: Das System lauscht kontinuierlich auf das Wakeword "heyListe"
+2. **Aktivieren**: Sage "heyListe" und warte auf das Bestätigungssignal
 3. **Sprechen**: Nach dem Signal deine Einkaufsliste aufsagen (z.B. "Ich brauche Milch, Brot und Äpfel")
 4. **Bestätigung**: Das System analysiert die Sprache und fügt Artikel zur Bring! Liste hinzu
 5. **Feedback**: Audio-Bestätigung der hinzugefügten Artikel
-
-**Hinweis**: Das System verwendet standardmäßig "heyListe" (Custom Wakeword). Falls du "Alexa" verwenden möchtest, entferne einfach die Dateien `heyListe.ppn` und `PorcupineDe.pv` aus dem `src/` Verzeichnis.
 
 ### Beispiel-Session
 ```
@@ -119,58 +129,98 @@ Füge Artikel zur Liste 'Zuhause' hinzu...
 Alle Artikel erfolgreich zu Bring! hinzugefügt.
 ```
 
-## 🔧 Technische Details
+## 🔧 Konfiguration im Detail
 
-### Dependencies
-- `bring-api`: Bring! API Integration (via pip)
-- `google-generativeai`: Gemini 2.5 Flash für Textanalyse
-- `picovoice`: Wakeword-Erkennung
-- `sounddevice`: Audio-Aufnahme
-- `aiohttp`: Asynchrone HTTP-Requests
-- `python-dotenv`: Umgebungsvariablen-Management
+### Audiogeräte-Konfiguration
 
-### Architektur
+Die Audiogeräte werden in einer **zentralen Konfigurationsdatei** verwaltet (`src/config.py`). Alle Einstellungen werden aus der `.env` geladen.
+
+**Warum drei verschiedene Indizes?**
+- Jede Bibliothek (sounddevice, pvrecorder, ALSA) zählt die Geräte unterschiedlich
+- `src/config.py` koordiniert diese und bietet eine einheitliche Schnittstelle
+- **Vorteil**: Du änderst alles nur an einer Stelle in der `.env`!
+
+### Beispiel: Jabra SPEAK 510 USB
+```env
+# Diese Werte funktionieren für ein Jabra SPEAK 510 USB Mikrofon
+SOUNDDEVICE_MICROPHONE_INDEX=0      # Index in sounddevice.query_devices()
+PVRECORDER_DEVICE_INDEX=3            # Index in PvRecorder.get_available_devices()
+ALSA_AUDIO_DEVICE=hw:0,0            # Ergebnis aus aplay -l
 ```
-src/
-├── wakeword.py    # Picovoice Wakeword-Erkennung
-├── gemini.py      # Gemini API Integration
-├── tts.py         # Text-to-Speech Feedback
-├── utils.py       # Audio-Wiedergabe Utilities
-└── bring_api.py   # Bring! API Wrapper
+
+## 🏗️ Architektur
+
 ```
+voice-assistant/
+├── main.py                 # Haupteinstiegspunkt
+├── requirements.txt        # Python Dependencies
+├── .env                    # Konfigurationsdatei
+├── src/
+│   ├── config.py          # 🆕 Zentrale Audiogeräte-Konfiguration
+│   ├── wakeword.py        # Picovoice Wakeword-Erkennung
+│   ├── gemini.py          # Gemini API Integration
+│   ├── tts.py             # Text-to-Speech Feedback
+│   ├── utils.py           # Audio-Wiedergabe Utilities
+│   ├── heyListe.ppn       # Custom Wakeword (Deutsch)
+│   └── PorcupineDe.pv     # Deutsches Sprachmodell
+├── signal.wav             # Aktivierungssignal
+└── signalAus.wav          # Deaktivierungssignal
+```
+
+### Wichtige Module
+
+| Modul | Funktion |
+|-------|----------|
+| `config.py` | ⚙️ Zentrale Audiogeräte-Konfiguration aus `.env` |
+| `wakeword.py` | 🎤 Hört auf Wakeword und aktiviert Aufnahme |
+| `gemini.py` | 🤖 Analysiert Audio und extrahiert Artikel |
+| `tts.py` | 🔊 Sprachausgabe der Bestätigungen |
+| `utils.py` | 🎵 Audio-Wiedergabe und Geräte-Management |
 
 ## 🏠 Deployment auf Raspberry Pi
 
 ### Hardware-Anforderungen
-- Raspberry Pi 3B+ oder neuer
-- USB-Mikrofon oder HAT mit Mikrofon
+- Raspberry Pi 3B+ oder neuer (empfohlen: Pi Zero 2 W oder Pi 4)
+- USB-Mikrofon oder Audio-HAT (z.B. Jabra SPEAK 510)
 - Lautsprecher oder Kopfhörer
+- Stabile Internetverbindung (für APIs)
 
 ### Installation
+
 ```bash
 # System aktualisieren
 sudo apt update && sudo apt upgrade -y
 
-# Python und Audio-Dependencies
-sudo apt install python3-pip python3-venv portaudio19-dev -y
+# Python und Audio-Tools installieren
+sudo apt install python3-pip python3-venv portaudio19-dev alsa-utils sox -y
 
-# Projekt setup (wie oben)
+# Projekt klonen und Setup
 git clone <repository-url>
 cd BringVoiceAssistant/voice-assistant
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+
+# Audiogeräte identifizieren und .env konfigurieren
+python3 -c "import sounddevice; print(sounddevice.query_devices())"
+python3 -c "from pvrecorder import PvRecorder; print(PvRecorder.get_available_devices())"
+aplay -l
+
+# Test starten
+python3 main.py
 ```
 
-### Autostart (systemd)
+### Autostart mit systemd
+
+Erstelle eine Service-Datei für Autostart:
+
 ```bash
-# Service-Datei erstellen
 sudo nano /etc/systemd/system/voice-assistant.service
 ```
 
 ```ini
 [Unit]
-Description=Voice Assistant Bring
+Description=BringVoiceAssistant - Sprachgesteuerter Einkaufslisten-Assistent
 After=network.target
 
 [Service]
@@ -180,118 +230,178 @@ WorkingDirectory=/home/pi/BringVoiceAssistant/voice-assistant
 Environment=PATH=/home/pi/BringVoiceAssistant/voice-assistant/venv/bin
 ExecStart=/home/pi/BringVoiceAssistant/voice-assistant/venv/bin/python main.py
 Restart=always
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
 ```
 
+Aktiviere und starte den Service:
+
 ```bash
-# Service aktivieren
+sudo systemctl daemon-reload
 sudo systemctl enable voice-assistant.service
 sudo systemctl start voice-assistant.service
+
+# Status prüfen
+sudo systemctl status voice-assistant.service
+
+# Logs anzeigen
+sudo journalctl -u voice-assistant.service -f
 ```
 
 ## 🔑 API-Keys erhalten
 
 ### Google Gemini API
 1. Besuche [Google AI Studio](https://aistudio.google.com/)
-2. Erstelle einen kostenlosen API-Key
-3. Füge ihn als `GEMINI_API_KEY` in die `.env` ein
+2. Klicke auf "Create API Key"
+3. Wähle oder erstelle ein Projekt
+4. Kopiere deinen API-Key
+5. Füge ihn als `GEMINI_API_KEY` in deine `.env` ein
 
 ### Picovoice Access Key
-1. Registriere dich bei [Picovoice Console](https://console.picovoice.ai/)
-2. Erstelle einen kostenlosen Access Key
-3. Füge ihn als `PICOVOICE_ACCESS_KEY` in die `.env` ein
-
-### Wakeword-Konfiguration
-
-#### Wakeword-Priorität
-Das System verwendet folgende Priorität für Wakewords:
-
-1. **Custom Wakeword-Dateien** (falls vorhanden): `heyListe.ppn` und `PorcupineDe.pv` im `src/` Verzeichnis
-2. **Vorgefertigtes Wakeword** (Fallback): Standard "Alexa" oder über `WAKEWORD_KEYWORD` in der `.env` konfiguriert
-
-#### Custom Wakeword (bereits konfiguriert)
-Das System verwendet standardmäßig das Custom Wakeword "heyListe" mit den bereits vorhandenen Dateien im `src/` Verzeichnis. Diese sind speziell für Raspberry Pi optimiert.
-
-```env
-# Custom Wakeword-Konfiguration
-WAKEWORD_KEYWORD_PATH=/pfad/zu/deinem/wakeword.ppn
-WAKEWORD_MODEL_PATH=/pfad/zu/deinem/sprachmodell.pv
-WAKEWORD_NAME=heyListe  # Anzeigename für das Wakeword
-```
-
-**Custom Wakeword erstellen (nur falls du ein anderes Custom Wakeword möchtest):**
-1. Besuche [Picovoice Console](https://console.picovoice.ai/)
-2. Gehe zu "Voice Models" → "Create Voice Model"
-3. Wähle deine Sprache (z.B. Deutsch)
-4. Gehe zu "Custom Keywords" → "Create Custom Keyword"
-5. Gib dein gewünschtes Wakeword ein (z.B. "Einkaufsliste", "Shopping", etc.)
-6. Lade die `.ppn`-Datei herunter und platziere sie im `src/` Verzeichnis
-7. Lade das Sprachmodell (`.pv`-Datei) herunter und platziere es im `src/` Verzeichnis
-
-#### Vorgefertigtes Wakeword verwenden
-Falls du "Alexa" oder ein anderes vorgefertigtes Wakeword verwenden möchtest:
-
-**Einfachste Lösung für "Alexa":**
-```bash
-# Entferne die Custom-Dateien
-rm voice-assistant/src/heyListe.ppn
-rm voice-assistant/src/PorcupineDe.pv
-```
-Dann verwendet das System automatisch "Alexa" - **keine weitere Konfiguration nötig!**
-
-```env
-# Vorgefertigtes Wakeword (keine Dateien nötig!)
-WAKEWORD_KEYWORD=alexa  # oder "hey google", "hey siri", etc.
-WAKEWORD_NAME=Alexa  # Anzeigename für das Wakeword
-```
-
-**Verfügbare vorgefertigte Wakewords:**
-- **alexa**: "Alexa" Wakeword
-- **hey google**: "Hey Google" Wakeword  
-- **hey siri**: "Hey Siri" Wakeword
-- **computer**: "Computer" Wakeword
-- **jarvis**: "Jarvis" Wakeword
-- **und viele weitere**: Alle verfügbaren Wakewords findest du in der [Picovoice Dokumentation](https://picovoice.ai/docs/quick-start/porcupine-c/)
+1. Registriere dich kostenlos bei [Picovoice Console](https://console.picovoice.ai/)
+2. Gehe zu "AccessKey" und erstelle einen neuen
+3. Kopiere deinen Access Key
+4. Füge ihn als `PICOVOICE_ACCESS_KEY` in deine `.env` ein
 
 ### Bring! Credentials
 - Verwende deine normalen Bring! App Login-Daten
 - `BRING_LIST_NAME` muss exakt dem Namen deiner Liste in der App entsprechen
 
-## 🛠️ Troubleshooting
+## 🆕 Wakeword-Konfiguration
 
-### Audio-Probleme
+### Custom Wakeword verwenden (Standard)
+
+Das System ist bereits mit dem Custom Wakeword **"heyListe"** (Deutsch) konfiguriert. Die benötigten Dateien sind vorhanden:
+- `src/heyListe.ppn` - Wakeword-Datei
+- `src/PorcupineDe.pv` - Deutsches Sprachmodell
+
+**Keine zusätzliche Konfiguration nötig!** 🎉
+
+### Vorgefertigtes Wakeword verwenden (z.B. "Alexa")
+
+Falls du ein Standard-Wakeword wie "Alexa" bevorzugst:
+
 ```bash
-# Verfügbare Audio-Geräte anzeigen
-aplay -l
-
-# Teste Audio-Wiedergabe
-aplay -D plughw:1,0 /path/to/test.wav
-
-# Überprüfe Audio-Device in .env
-echo $AUDIO_DEVICE
+# Entferne die Custom-Dateien
+rm voice-assistant/src/heyListe.ppn
+rm voice-assistant/src/PorcupineDe.pv
 ```
 
-**Häufige Audio-Probleme:**
-- **"Command returned non-zero exit status 1"**: Falsches Audio-Device in `.env`
-- **Kein Ton**: Audio-Device ist belegt oder nicht verfügbar
-- **Verzerrter Ton**: Falsche Sample-Rate, versuche `sox` für Resampling
+Das System wechselt automatisch zu "Alexa". Optional kannst du die `.env` konfigurieren:
+
+```env
+# Vorgefertigtes Wakeword (in .env, optional)
+WAKEWORD_KEYWORD=alexa
+WAKEWORD_NAME=Alexa
+```
+
+**Verfügbare vorgefertigte Wakewords:**
+- `alexa` - Alexa Wakeword
+- `hey google` - Google Wakeword  
+- `hey siri` - Siri Wakeword
+- `computer` - Computer Wakeword
+- `jarvis` - Jarvis Wakeword
+- Weitere findest du in der [Picovoice Dokumentation](https://picovoice.ai/docs/quick-start/porcupine-c/)
+
+### Eigenes Custom Wakeword erstellen
+
+1. Besuche [Picovoice Console](https://console.picovoice.ai/)
+2. Gehe zu "Custom Keywords" → "Create Custom Keyword"
+3. Wähle deine Sprache (z.B. Deutsch)
+4. Gib dein gewünschtes Wakeword ein (z.B. "Einkaufen", "Shopping", etc.)
+5. Lade die `.ppn`-Datei herunter
+6. Lade das Sprachmodell (`.pv`-Datei) herunter
+7. Kopiere beide Dateien in den `src/` Verzeichnis
+8. Benenne die `.ppn`-Datei entsprechend um (z.B. `einkaufen.ppn`)
+9. Keine `.env`-Änderungen nötig, das System erkennt die neuen Dateien automatisch
+
+## 🐛 Troubleshooting
+
+### Audio-Probleme
+
+**Symptom**: "Command returned non-zero exit status 1"
+
+```bash
+# Schritt 1: Audiogeräte überprüfen
+aplay -l                              # Verfügbare Ausgabegeräte
+arecord -l                            # Verfügbare Eingabegeräte
+
+# Schritt 2: Richtigen Index finden
+python3 -c "import sounddevice; print(sounddevice.query_devices())"
+
+# Schritt 3: Audio-Test
+aplay -D hw:0,0 signal.wav           # Mit deinem Gerät testen
+```
+
+**Häufige Ursachen:**
+- ❌ Falsches ALSA-Gerät in `ALSA_AUDIO_DEVICE`
+- ❌ Audio-Gerät ist belegt oder nicht verfügbar
+- ❌ Falscher Index in den Konfigurationsvariablen
+- ✅ **Lösung**: Überprüfe alle Indizes nochmal und aktualisiere `.env`
+
+### Mikrofon-Probleme
+
+**Symptom**: Wakeword wird nicht erkannt
+
+```bash
+# Schritt 1: Verfügbare Eingabegeräte checken
+python3 -c "from pvrecorder import PvRecorder; print(PvRecorder.get_available_devices())"
+
+# Schritt 2: Geräteindex überprüfen
+# Der richtige Index sollte dein Mikrofon enthalten (z.B. "Jabra SPEAK 510 USB")
+
+# Schritt 3: Versuche mit Standardgerät
+# Änder PVRECORDER_DEVICE_INDEX=1 (Default-Gerät) in der .env
+```
+
+**Tipps:**
+- Spreche das Wakeword **deutlich und mit normaler Lautstärke**
+- Versuche verschiedene Mikrofon-Positionen
+- Überprüfe, ob die `.ppn` und `.pv` Dateien im `src/` Verzeichnis vorhanden sind
+- Teste mit einem anderen Wakeword (z.B. "Alexa")
 
 ### Bring! API Fehler
-- Überprüfe Email/Passwort in `.env`
-- Stelle sicher, dass der Listenname exakt übereinstimmt
-- Teste die Bring! App auf dem Handy
 
-### Wakeword-Erkennung
-- Mikrofon-Berechtigung prüfen
-- Spreche das Wakeword deutlich und nicht zu leise
-- Teste verschiedene Mikrofon-Positionen
-- Überprüfe die Wakeword-Konfiguration:
-  ```bash
-  # Teste ob Custom-Dateien vorhanden sind
-  ls -la voice-assistant/src/*.ppn
-  ls -la voice-assistant/src/*.pv
-  ```
-- Bei Custom Wakewords: Stelle sicher, dass die `.ppn` und `.pv` Dateien korrekt heruntergeladen wurden
-- Bei vorgefertigten Wakewords: Überprüfe den `WAKEWORD_KEYWORD` Wert in der `.env` 
+```bash
+# Überprüfe Login-Daten
+grep "BRING" voice-assistant/.env
+
+# Stelle sicher:
+# 1. Email und Passwort sind korrekt
+# 2. Der Listenname entspricht exakt der Bring! App
+# 3. Internet-Verbindung funktioniert
+```
+
+### Logs prüfen
+
+```bash
+# Bei systemd Service
+sudo journalctl -u voice-assistant.service -f
+
+# Direkter Start (für Debugging)
+cd voice-assistant
+source venv/bin/activate
+python main.py
+```
+
+## 📊 Performance & Tipps
+
+### Für Raspberry Pi Zero 2 W
+- Nutze den kostenlosen Tier von Gemini (ausreichend)
+- Erwäge, die Aufnahmedauer zu reduzieren (`duration=3` statt `5`)
+- Verwende ein USB-Mikrofon für bessere Performance
+
+### Für Raspberry Pi 4/5
+- Alle Funktionen funktionieren optimal
+- Du kannst mit mehr Artikeln pro Session arbeiten
+
+### Netzwerk-Tipps
+- Nutze **Wired Ethernet** (stabiler als WiFi)
+- Bei WiFi: Verwende 5GHz Band falls möglich
+- Google Gemini API benötigt Internetverbindung für KI-Analyse
+
+## 📝 Lizenz
+
+Dieses Projekt ist MIT lizenziert. Siehe LICENSE-Datei für Details.
