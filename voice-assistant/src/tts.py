@@ -90,51 +90,106 @@ def speakPiper(text: str):
 def speak(text: str, lang: str = "de"):
     """
     Wandelt Text mit Google Text-to-Speech (gTTS) in Sprache um und spielt sie ab.
+    Optimiert: Spielt MP3 direkt ab ohne Konvertierung zu WAV
+    
     Args:
         text (str): Der zu synthetisierende Text
         lang (str): Sprachcode (Standard: 'de')
     """
-    import tempfile
-    import os
+    if not text:
+        print("speak-Funktion erhielt leeren Text.")
+        return
+    
+    mp3_path = None
+    start_time = time.time()
+    
     try:
-        if not text:
-            print("gspeak-Funktion erhielt leeren Text.")
-            return
-        # Erzeuge temporäre MP3-Datei
+        # Erzeuge temporäre MP3-Datei und speichere direkt
         with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_file:
-            tts = gTTS(text=text, lang=lang)
-            tts.save(tmp_file.name)
             mp3_path = tmp_file.name
-        # Konvertiere MP3 zu WAV für play_audio_file
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wav_file:
-            wav_path = wav_file.name
-        # Nutze ffmpeg zur Umwandlung
-        import subprocess
-        try:
-            subprocess.run(["ffmpeg", "-y", "-i", mp3_path, "-acodec", "pcm_s16le", "-ar", "48000", wav_path], check=True, capture_output=True, timeout=10)
-        except subprocess.TimeoutExpired:
-            print("Fehler: ffmpeg Konvertierung hat zu lange gedauert")
-            return
-        except Exception as e:
-            print(f"Fehler bei ffmpeg Konvertierung: {e}")
-            return
+            tts = gTTS(text=text, lang=lang)
+            tts.save(mp3_path)
         
-        # Versuche Audio abzuspielen
+        # Spiele MP3 direkt ab (KEINE Konvertierung zu WAV mehr!)
         try:
-            play_audio_file(wav_path)
+            play_audio_file(mp3_path)
         except Exception as e:
             print(f"Fehler beim Abspielen der TTS-Ausgabe: {e}")
-            # Stille Fehler - nicht so kritisch
+        
+        end_time = time.time()
+        duration = end_time - start_time
+        print(f"Google TTS Generation für '{text}' dauerte: {duration:.2f} Sekunden")
             
     except Exception as e:
-        print(f"Fehler bei gspeak: {e}")
+        print(f"Fehler bei Google TTS: {e}")
     finally:
         # Aufräumen
         try:
-            if 'mp3_path' in locals() and os.path.exists(mp3_path):
+            if mp3_path and os.path.exists(mp3_path):
                 os.unlink(mp3_path)
-            if 'wav_path' in locals() and os.path.exists(wav_path):
-                os.unlink(wav_path)
+        except Exception as cleanup_error:
+            print(f"Warnung: Fehler beim Aufräumen temporärer Dateien: {cleanup_error}")
+
+
+def speakOpenAI(text: str):
+    """
+    Wandelt Text mit OpenAI-kompatiblen TTS-API in Sprache um und spielt sie ab.
+    Funktioniert mit OpenAI und anderen kompatiblen APIs (z.B. mylab.th-luebeck.dev).
+    
+    Optimiert: Spielt MP3 direkt ab ohne Konvertierung zu WAV
+    
+    Args:
+        text (str): Der zu synthetisierende Text
+    """
+    if not text:
+        print("speakOpenAI-Funktion erhielt leeren Text.")
+        return
+    
+    start_time = time.time()
+    mp3_path = None
+    
+    try:
+        from openai import OpenAI
+        
+        # Initialisiere OpenAI-Client mit benutzerdefinierten Einstellungen
+        # Arbeiten Sie nicht mit dem Default Endpunkt von OpenAI sondern mit unserem
+        client = OpenAI(
+            base_url="https://models.mylab.th-luebeck.dev/v1",
+            api_key="-"  # Sie können hier irgendeinen API-KEY angeben, aber keinen leeren!
+        )
+        
+        # Erstelle temporäre MP3-Datei
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_file:
+            mp3_path = tmp_file.name
+        
+        # Erstelle TTS-Response und speichere als MP3
+        response = client.audio.speech.create(
+            model="tts-1-hd",
+            voice="onyx",
+            speed=1.1,
+            input=text
+        )
+        response.stream_to_file(mp3_path)
+        
+        # Spiele MP3 direkt ab (nutzt optimierte play_audio_file aus utils.py)
+        try:
+            play_audio_file(mp3_path)
+        except Exception as e:
+            print(f"Fehler beim Abspielen der TTS-Ausgabe: {e}")
+        
+        end_time = time.time()
+        duration = end_time - start_time
+        print(f"OpenAI TTS Generation für '{text}' dauerte: {duration:.2f} Sekunden")
+        
+    except ImportError:
+        print("Fehler: openai Paket nicht installiert. Bitte 'pip install openai' ausführen.")
+    except Exception as e:
+        print(f"Fehler bei OpenAI TTS: {e}")
+    finally:
+        # Aufräumen der temporären Dateien
+        try:
+            if mp3_path and os.path.exists(mp3_path):
+                os.unlink(mp3_path)
         except Exception as cleanup_error:
             print(f"Warnung: Fehler beim Aufräumen temporärer Dateien: {cleanup_error}")
 
