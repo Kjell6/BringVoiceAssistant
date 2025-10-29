@@ -1,12 +1,12 @@
 [Unit]
 Description=Bring Voice Assistant
-After=network.target sound.target
-Wants=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-Group=pi
+User=kjell
+Group=kjell
 WorkingDirectory=/home/kjell/BringVoiceAssistant/voice-assistant
 ExecStart=/home/kjell/BringVoiceAssistant/voice-assistant/start_assistant.sh
 Restart=always
