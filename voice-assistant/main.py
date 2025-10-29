@@ -33,7 +33,7 @@ LAST_RECORDING_FILE = "last_recording.wav"
 SIGNAL_START = "signal.wav"
 SIGNAL_END = "signalAus.wav"
 LISTS_CACHE_TIMEOUT = 300  # 5 Minuten Cache für Listen
-SESSION_MAX_AGE = 3600 * 6  # 6 Stunden - nach dieser Zeit neu-login (24/7 Stabilität)
+SESSION_MAX_AGE = 3600 * 3  # 3 Stunden - nach dieser Zeit neu-login (24/7 Stabilität)
 
 # Cache für Bring! Session und Listen
 class BringCache:
@@ -51,6 +51,19 @@ class BringCache:
     def is_session_valid(self) -> bool:
         """Prüft, ob Session noch gültig ist."""
         return self.session is not None and self.bring is not None
+    
+    def is_session_expired(self) -> bool:
+        """Prüft, ob Session älter als SESSION_MAX_AGE ist (24/7 Stabilität)."""
+        if not self.is_session_valid() or self.session_timestamp is None:
+            return True
+        
+        age = time.time() - self.session_timestamp
+        is_expired = age > SESSION_MAX_AGE
+        
+        if is_expired:
+            logger.info(f"Session zu alt: {age:.0f}s > {SESSION_MAX_AGE}s")
+        
+        return is_expired
     
     def is_lists_cache_valid(self) -> bool:
         """Prüft, ob Listen-Cache noch gültig ist."""
@@ -190,10 +203,13 @@ async def add_items_to_bring(items: list, max_retries: int = 2):
         try:
             step_times = {}
             
-            # OPTIMIERUNG 1: Login-Cache prüfen
+            # OPTIMIERUNG 1: Login-Cache prüfen (mit 24/7 Session-Age-Check)
             session_start = time.time()
-            if not bring_cache.is_session_valid() or (time.time() - bring_cache.session_timestamp > SESSION_MAX_AGE):
-                print("[dim]  ➤ Neue Session (Cache ungültig oder abgelaufen)[/dim]")
+            if not bring_cache.is_session_valid() or bring_cache.is_session_expired():
+                if bring_cache.is_session_expired():
+                    print("[dim]  ➤ Session abgelaufen (3h) - Neue Session[/dim]")
+                else:
+                    print("[dim]  ➤ Neue Session (Cache ungültig)[/dim]")
                 bring_cache.cache_misses["session"] += 1
                 session = aiohttp.ClientSession()
                 bring = Bring(session, bring_email, bring_password)
@@ -284,10 +300,21 @@ async def add_items_to_bring(items: list, max_retries: int = 2):
             return False
         
         except (BringAuthException, BringRequestException, BringParseException) as e:
-            print(f"[red]Bring! API Fehler: {e} (Versuch {attempt + 1}/{max_retries})[/red]")
-            logger.exception("Detaillierter Fehler:")
-            bring_cache.invalidate_session()
-            return False
+            error_str = str(e).lower()
+            # 401/403 Fehler = Session-Problem
+            if "401" in error_str or "403" in error_str or "unauthorized" in error_str:
+                print(f"[yellow]Session-Fehler (401/403): {e} (Versuch {attempt + 1}/{max_retries})[/yellow]")
+                print("[dim]  → Invalidiere Session und versuche neu-login[/dim]")
+                bring_cache.invalidate_session()
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(1)
+                    continue
+                return False
+            else:
+                print(f"[red]Bring! API Fehler: {e} (Versuch {attempt + 1}/{max_retries})[/red]")
+                logger.exception("Detaillierter Fehler:")
+                bring_cache.invalidate_session()
+                return False
         
         except Exception as e:
             print(f"[red]Fehler mit Bring! API: {e}[/red]")
